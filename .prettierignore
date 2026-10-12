@@ -1,0 +1,8 @@
+dist
+coverage
+node_modules
+storage
+src/generated
+prisma/migrations
+pnpm-lock.yaml
+openapi.json

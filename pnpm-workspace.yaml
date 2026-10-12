@@ -1,0 +1,16 @@
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - '@swc/core'
+  - argon2
+  - esbuild
+  - unrs-resolver
+
+ignoredBuiltDependencies:
+  - '@nestjs/core'
+  - '@scarf/scarf'
+  - prisma
+
+peerDependencyRules:
+  allowedVersions:
+    # mjml's optional minifier (htmlnano) asks for cssnano 8; minification is not used.
+    htmlnano>cssnano: '7'
