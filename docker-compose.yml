@@ -1,0 +1,60 @@
+# Self-contained demo stack: API + PostgreSQL 17 + Mailpit.
+#   docker compose up --build
+#   API      http://localhost:3100/api/v1/health   (Swagger UI: /docs)
+#   Mailpit  http://localhost:8025
+# Ports can be changed with API_PORT / MAILPIT_UI_PORT.
+name: atrium
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: atrium
+      POSTGRES_PASSWORD: atrium
+      POSTGRES_DB: atrium
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U atrium -d atrium']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '${MAILPIT_UI_PORT:-8025}:8025'
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://atrium:atrium@postgres:5432/atrium
+      # Demo-only default. Set JWT_SECRET in your shell or an .env file for anything public.
+      JWT_SECRET: ${JWT_SECRET:-docker-demo-secret-change-me-0123456789}
+      JWT_TTL: 8h
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      MAIL_FROM: Atrium <no-reply@example.com>
+      APP_URL: http://localhost:${API_PORT:-3100}
+      FRONTEND_URL: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000
+      DEMO_MODE: 'true'
+      STORAGE_DIR: /app/storage
+      # Seed demo data on the first start (no-op once seeded).
+      SEED_ON_FIRST_RUN: 'true'
+    ports:
+      - '${API_PORT:-3100}:3100'
+    volumes:
+      - storage:/app/storage
+
+volumes:
+  pgdata:
+  storage:
