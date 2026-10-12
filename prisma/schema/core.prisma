@@ -1,0 +1,15 @@
+// Core module models (users, org, roles, inbox). Placeholder for phase 2a:
+// phase 2b replaces this with the real core domain.
+
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  email        String   @unique
+  displayName  String
+  passwordHash String?
+  /// Role keys, e.g. ["employee"]. Replaced by a proper role model in 2b.
+  roles        String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}

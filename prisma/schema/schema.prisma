@@ -1,0 +1,13 @@
+// Atrium Prisma schema (multi-file). This file holds only the generator and the
+// datasource. Models live in one file per module: prisma/schema/<module>.prisma.
+// The connection URL is configured in prisma.config.ts (Prisma 7).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}

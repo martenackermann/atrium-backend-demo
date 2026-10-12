@@ -1,0 +1,228 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/files/{token}": {
+      "get": {
+        "description": "URLs are created server-side by StorageService.createDownloadUrl(); no bearer token needed.",
+        "operationId": "Files_download",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Download a file through a signed, expiring URL",
+        "tags": [
+          "files"
+        ],
+        "security": []
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "Health_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All dependencies are up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "At least one dependency is down",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness/readiness: database and job queue",
+        "tags": [
+          "system"
+        ],
+        "security": []
+      }
+    }
+  },
+  "info": {
+    "title": "Atrium API",
+    "description": "Employee self-service portal (portfolio demo by Acme IT Services). Errors use RFC 9457 `application/problem+json`; lists use `?page=&perPage=&sort=`.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "HealthDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "checks": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "up",
+                      "down"
+                    ]
+                  },
+                  "durationMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "status",
+                  "durationMs"
+                ]
+              },
+              "queue": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "up",
+                      "down"
+                    ]
+                  },
+                  "durationMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "status",
+                  "durationMs"
+                ]
+              }
+            },
+            "required": [
+              "database",
+              "queue"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ]
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "description": "RFC 9457 problem details",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://atrium.example.com/problems/validation-error"
+          },
+          "title": {
+            "type": "string",
+            "example": "Validation failed"
+          },
+          "status": {
+            "type": "integer",
+            "example": 422
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "example": "/api/v1/example"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "object",
+            "description": "Field errors keyed by dotted path (422 only). \"_root\" holds payload-level errors.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}
