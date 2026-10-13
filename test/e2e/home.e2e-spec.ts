@@ -23,7 +23,8 @@ describe('home my-day', () => {
       date: t.app.get(Clock).today(),
       inbox: { total: 1, high: 0, top: [expect.objectContaining({ type: 'people.reply_required' })] },
       upcoming: [],
-      assets: null,
+      // The assets module contributes even without its seed (Emma has no devices here).
+      assets: { active: 0, pendingAcceptance: 0 },
     });
     expect(res.body.news.map((n: { title: string }) => n.title)).toEqual([
       'Welcome to Atrium',
