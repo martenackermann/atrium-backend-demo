@@ -2037,6 +2037,771 @@
           "admin"
         ]
       }
+    },
+    "/api/v1/travel/queues/counts": {
+      "get": {
+        "operationId": "TravelQueues_counts",
+        "parameters": [],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelCountsDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Badge counts: my active trips, approvals, desk queues",
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/car-classes": {
+      "get": {
+        "operationId": "CarClasses_list",
+        "parameters": [
+          {
+            "name": "vehicleType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "car",
+                "van"
+              ]
+            }
+          },
+          {
+            "name": "includeInactive",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarRentalClassListDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Car-rental classes (active; includeInactive for the desk), sortOrder",
+        "tags": [
+          "travel"
+        ]
+      },
+      "post": {
+        "operationId": "CarClasses_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCarClassDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarRentalClassDto_Output"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. action not available in current state)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/car-classes/{id}": {
+      "patch": {
+        "operationId": "CarClasses_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCarClassDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. action not available in current state)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarRentalClassDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests": {
+      "get": {
+        "operationId": "TravelRequests_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "mine",
+              "type": "string",
+              "enum": [
+                "mine",
+                "approvals",
+                "deputy",
+                "team",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "highPriority",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelRequestPageDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Travel requests by scope (mine | approvals | deputy | team | all)",
+        "tags": [
+          "travel"
+        ]
+      },
+      "post": {
+        "operationId": "TravelRequests_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AugmentedZodDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelRequestDetailDto_Output"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Submit a car, train or flight request",
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests/export.csv": {
+      "get": {
+        "operationId": "TravelRequests_exportCsv",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "highPriority",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV with BOM",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "summary": "CSV export of all requests (travel desk, it_admin)",
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests/preview": {
+      "post": {
+        "operationId": "TravelRequests_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelPreviewRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPreviewDto_Output"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "summary": "needsApproval, reasons and approver candidates for a (partial) draft",
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests/{id}": {
+      "get": {
+        "operationId": "TravelRequests_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelRequestDetailDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests/{id}/actions/{action}": {
+      "post": {
+        "operationId": "TravelRequests_act",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Action body (API.md §5.3)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelRequestDetailDto_Output"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. action not available in current state)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed (see `errors`)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Workflow action: approve, decline, withdraw, request_cancellation, confirm_cancellation, reject_cancellation, book, mark_booking_impossible, retry_booking, close",
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests/{id}/booking/pin": {
+      "get": {
+        "operationId": "TravelRequests_pin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "Not allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelPinDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reveal the booking PIN (traveller, requester, travel desk); audited as view_pin",
+        "tags": [
+          "travel"
+        ]
+      }
+    },
+    "/api/v1/travel/requests/{id}/timeline": {
+      "get": {
+        "operationId": "TravelRequests_timeline",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TravelTimelineDto_Output"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "travel"
+        ]
+      }
     }
   },
   "info": {
@@ -4996,6 +5761,2728 @@
           "jobRunId"
         ],
         "additionalProperties": false
+      },
+      "TravelCountsDto_Output": {
+        "type": "object",
+        "properties": {
+          "mine": {
+            "type": "object",
+            "properties": {
+              "active": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "active"
+            ],
+            "additionalProperties": false
+          },
+          "approvals": {
+            "type": "object",
+            "properties": {
+              "mine": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "deputy": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "team": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "mine",
+              "deputy",
+              "team"
+            ],
+            "additionalProperties": false
+          },
+          "desk": {
+            "type": "object",
+            "properties": {
+              "pendingApproval": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "toBook": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "toBookHighPriority": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "cancellationRequested": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bookingImpossible": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "pendingApproval",
+              "toBook",
+              "toBookHighPriority",
+              "cancellationRequested",
+              "bookingImpossible"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          }
+        },
+        "required": [
+          "mine",
+          "approvals",
+          "desk"
+        ],
+        "additionalProperties": false
+      },
+      "CarRentalClass_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exampleModels": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "car",
+              "van"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "exampleModels",
+          "vehicleType",
+          "isDefault",
+          "sortOrder",
+          "active"
+        ],
+        "additionalProperties": false
+      },
+      "CarRentalClassListDto_Output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CarRentalClass_Output"
+        }
+      },
+      "CreateCarClassDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z]{4}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "exampleModels": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "car",
+              "van"
+            ]
+          },
+          "isDefault": {
+            "default": false,
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "default": 0,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9999
+          },
+          "active": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "vehicleType"
+        ],
+        "additionalProperties": false
+      },
+      "CarRentalClassDto_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exampleModels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "car",
+              "van"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "exampleModels",
+          "vehicleType",
+          "isDefault",
+          "sortOrder",
+          "active"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateCarClassDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z]{4}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "exampleModels": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "car",
+              "van"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9999
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TravelRequestSummary_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "car",
+              "train",
+              "flight"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_approval",
+              "to_book",
+              "booked",
+              "declined",
+              "booking_impossible",
+              "cancellation_requested",
+              "cancelled"
+            ]
+          },
+          "traveller": {
+            "$ref": "#/components/schemas/UserRef_Output"
+          },
+          "requester": {
+            "$ref": "#/components/schemas/UserRef_Output"
+          },
+          "approver": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRef_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "approverReason": {
+            "type": "string",
+            "enum": [
+              "direct_manager",
+              "site_manager_escalation",
+              "manager_unavailable",
+              "executive_self",
+              "fallback",
+              null
+            ],
+            "nullable": true
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "route": {
+            "type": "string"
+          },
+          "needsApproval": {
+            "type": "boolean"
+          },
+          "approvalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelReasonDto_Output"
+            }
+          },
+          "approvalExemption": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TravelExemptionDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "isHighPriority": {
+            "type": "boolean"
+          },
+          "actingAs": {
+            "type": "string",
+            "enum": [
+              "self",
+              "requester",
+              "approver",
+              "deputy",
+              "manager_chain",
+              "executive",
+              "back_office",
+              "admin",
+              "system",
+              null
+            ],
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "availableActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "decline",
+                "withdraw",
+                "request_cancellation",
+                "confirm_cancellation",
+                "reject_cancellation",
+                "book",
+                "mark_booking_impossible",
+                "retry_booking",
+                "close",
+                "view_pin"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "reference",
+          "kind",
+          "status",
+          "traveller",
+          "requester",
+          "approver",
+          "approverReason",
+          "startsAt",
+          "endsAt",
+          "route",
+          "needsApproval",
+          "approvalReasons",
+          "approvalExemption",
+          "isHighPriority",
+          "actingAs",
+          "createdAt",
+          "updatedAt",
+          "availableActions"
+        ],
+        "additionalProperties": false
+      },
+      "TravelReasonDto_Output": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "vehicle_class_upgrade",
+              "car_estate",
+              "car_automatic_preferred",
+              "car_automatic_required",
+              "car_diesel",
+              "car_foreign_travel",
+              "car_delivery",
+              "car_collection",
+              "train_saver_fare",
+              "train_separate_tickets",
+              "flight"
+            ]
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "additionalProperties": false
+      },
+      "TravelExemptionDto_Output": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "executive_traveller"
+            ]
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "additionalProperties": false
+      },
+      "TravelRequestPageDto_Output": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelRequestSummary_Output"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "perPage": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "total": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "totalPages": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "page",
+              "perPage",
+              "total",
+              "totalPages"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "TravelPreviewRequestDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "car",
+              "train",
+              "flight"
+            ]
+          },
+          "travellerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "approverId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "default": null,
+            "nullable": true
+          },
+          "costCenterId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "default": null,
+            "nullable": true
+          },
+          "costCenterReason": {
+            "default": null,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recharge": {
+            "type": "object",
+            "properties": {
+              "customer": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "projectNumber": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "default": null,
+            "nullable": true
+          },
+          "comment": {
+            "default": null,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "car": {
+            "type": "object",
+            "properties": {
+              "vehicleType": {
+                "type": "string",
+                "enum": [
+                  "car",
+                  "van",
+                  null
+                ],
+                "default": null,
+                "nullable": true
+              },
+              "carClassId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "default": null,
+                "nullable": true
+              },
+              "pickupAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "default": null,
+                "nullable": true
+              },
+              "returnAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "default": null,
+                "nullable": true
+              },
+              "destination": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "equipment": {
+                "type": "object",
+                "properties": {
+                  "estate": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "navigation": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "automaticPreferred": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "automaticRequired": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "diesel": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "winterTyres": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "foreignTravel": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "childSeat": {
+                    "default": null,
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "default": null,
+                "nullable": true
+              },
+              "foreignCountries": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": null,
+                "nullable": true
+              },
+              "expectedKmPerDay": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "default": null,
+                "nullable": true
+              },
+              "minPayloadKg": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "default": null,
+                "nullable": true
+              },
+              "handover": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "branch",
+                      "delivery",
+                      null
+                    ],
+                    "default": null,
+                    "nullable": true
+                  },
+                  "branch": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "street": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "houseNumber": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "postalCode": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "city": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "countryCode": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "default": null,
+                    "nullable": true
+                  }
+                },
+                "default": null,
+                "nullable": true
+              },
+              "dropOff": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "branch",
+                      "collection",
+                      null
+                    ],
+                    "default": null,
+                    "nullable": true
+                  },
+                  "branch": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "street": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "houseNumber": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "postalCode": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "city": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "countryCode": {
+                        "default": null,
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "default": null,
+                    "nullable": true
+                  }
+                },
+                "default": null,
+                "nullable": true
+              },
+              "driver": {
+                "type": "object",
+                "properties": {
+                  "firstName": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "lastName": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "email": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "phone": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "birthDate": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "licenceNumber": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "additionalDrivers": {
+                    "default": null,
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "default": null,
+                "nullable": true
+              },
+              "specialEquipmentReason": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "default": null,
+            "nullable": true
+          },
+          "train": {
+            "type": "object",
+            "properties": {
+              "tripType": {
+                "type": "string",
+                "enum": [
+                  "one_way",
+                  "return",
+                  null
+                ],
+                "default": null,
+                "nullable": true
+              },
+              "outboundAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "default": null,
+                "nullable": true
+              },
+              "returnAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "default": null,
+                "nullable": true
+              },
+              "fromStation": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "viaStation": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "toStation": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fareType": {
+                "type": "string",
+                "enum": [
+                  "saver",
+                  "flex",
+                  null
+                ],
+                "default": null,
+                "nullable": true
+              },
+              "seatReservations": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "default": null,
+                "nullable": true
+              },
+              "separateTickets": {
+                "default": null,
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "localTransportTicket": {
+                "default": null,
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "companionIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "default": null,
+                "nullable": true
+              },
+              "notes": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "default": null,
+            "nullable": true
+          },
+          "flight": {
+            "type": "object",
+            "properties": {
+              "tripType": {
+                "type": "string",
+                "enum": [
+                  "one_way",
+                  "return",
+                  null
+                ],
+                "default": null,
+                "nullable": true
+              },
+              "outboundDepartureAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "default": null,
+                "nullable": true
+              },
+              "outboundFrom": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "outboundTo": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "returnDepartureAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "default": null,
+                "nullable": true
+              },
+              "returnFrom": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "returnTo": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "handLuggageOnly": {
+                "default": null,
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "notes": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "default": null,
+            "nullable": true
+          }
+        },
+        "required": [
+          "kind",
+          "travellerId"
+        ]
+      },
+      "TravelPreviewDto_Output": {
+        "type": "object",
+        "properties": {
+          "needsApproval": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelReasonDto_Output"
+            }
+          },
+          "exemption": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TravelExemptionDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "approverCandidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApproverCandidate_Output"
+            }
+          },
+          "defaultApproverId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "nullable": true
+          },
+          "autoApproval": {
+            "type": "string",
+            "enum": [
+              "executive_self",
+              "requester_is_approver",
+              "same_approver",
+              null
+            ],
+            "nullable": true
+          },
+          "isHighPriority": {
+            "type": "boolean"
+          },
+          "specialEquipmentReasonRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "needsApproval",
+          "reasons",
+          "exemption",
+          "approverCandidates",
+          "defaultApproverId",
+          "autoApproval",
+          "isHighPriority",
+          "specialEquipmentReasonRequired"
+        ],
+        "additionalProperties": false
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "houseNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "postalCode": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 12
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "required": [
+          "street",
+          "houseNumber",
+          "postalCode",
+          "city",
+          "countryCode"
+        ],
+        "additionalProperties": false
+      },
+      "AugmentedZodDto": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "car"
+                ]
+              },
+              "travellerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "approverId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "costCenterId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "costCenterReason": {
+                "type": "string",
+                "maxLength": 500,
+                "nullable": true
+              },
+              "recharge": {
+                "type": "object",
+                "properties": {
+                  "customer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "projectNumber": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "customer",
+                  "projectNumber"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "comment": {
+                "type": "string",
+                "maxLength": 2000,
+                "nullable": true
+              },
+              "car": {
+                "type": "object",
+                "properties": {
+                  "vehicleType": {
+                    "type": "string",
+                    "enum": [
+                      "car",
+                      "van"
+                    ]
+                  },
+                  "carClassId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "pickupAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "returnAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "destination": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "equipment": {
+                    "type": "object",
+                    "properties": {
+                      "estate": {
+                        "type": "boolean"
+                      },
+                      "navigation": {
+                        "type": "boolean"
+                      },
+                      "automaticPreferred": {
+                        "type": "boolean"
+                      },
+                      "automaticRequired": {
+                        "type": "boolean"
+                      },
+                      "diesel": {
+                        "type": "boolean"
+                      },
+                      "winterTyres": {
+                        "type": "boolean"
+                      },
+                      "foreignTravel": {
+                        "type": "boolean"
+                      },
+                      "childSeat": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "estate",
+                      "navigation",
+                      "automaticPreferred",
+                      "automaticRequired",
+                      "diesel",
+                      "winterTyres",
+                      "foreignTravel",
+                      "childSeat"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "foreignCountries": {
+                    "default": [],
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2}$"
+                    }
+                  },
+                  "expectedKmPerDay": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5000,
+                    "nullable": true
+                  },
+                  "minPayloadKg": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20000,
+                    "nullable": true
+                  },
+                  "handover": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "branch",
+                          "delivery"
+                        ]
+                      },
+                      "branch": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "nullable": true
+                      },
+                      "address": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Address"
+                          }
+                        ],
+                        "nullable": true
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "dropOff": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "branch",
+                          "collection"
+                        ]
+                      },
+                      "branch": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "nullable": true
+                      },
+                      "address": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Address"
+                          }
+                        ],
+                        "nullable": true
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "driver": {
+                    "type": "object",
+                    "properties": {
+                      "firstName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "lastName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "email": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "format": "email",
+                        "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      "phone": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 40
+                      },
+                      "birthDate": {
+                        "type": "string",
+                        "format": "date",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                      },
+                      "licenceNumber": {
+                        "type": "string",
+                        "maxLength": 40,
+                        "nullable": true
+                      },
+                      "additionalDrivers": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "nullable": true
+                      }
+                    },
+                    "required": [
+                      "firstName",
+                      "lastName",
+                      "email",
+                      "phone",
+                      "birthDate"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "specialEquipmentReason": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "vehicleType",
+                  "carClassId",
+                  "pickupAt",
+                  "returnAt",
+                  "destination",
+                  "equipment",
+                  "handover",
+                  "dropOff",
+                  "driver"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "travellerId",
+              "car"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "train"
+                ]
+              },
+              "travellerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "approverId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "costCenterId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "costCenterReason": {
+                "type": "string",
+                "maxLength": 500,
+                "nullable": true
+              },
+              "recharge": {
+                "type": "object",
+                "properties": {
+                  "customer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "projectNumber": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "customer",
+                  "projectNumber"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "comment": {
+                "type": "string",
+                "maxLength": 2000,
+                "nullable": true
+              },
+              "train": {
+                "type": "object",
+                "properties": {
+                  "tripType": {
+                    "type": "string",
+                    "enum": [
+                      "one_way",
+                      "return"
+                    ]
+                  },
+                  "outboundAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "returnAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "nullable": true
+                  },
+                  "fromStation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "viaStation": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "toStation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "fareType": {
+                    "type": "string",
+                    "enum": [
+                      "saver",
+                      "flex"
+                    ]
+                  },
+                  "seatReservations": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
+                  },
+                  "separateTickets": {
+                    "type": "boolean"
+                  },
+                  "localTransportTicket": {
+                    "type": "boolean"
+                  },
+                  "companionIds": {
+                    "default": [],
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "tripType",
+                  "outboundAt",
+                  "fromStation",
+                  "toStation",
+                  "fareType",
+                  "seatReservations",
+                  "separateTickets",
+                  "localTransportTicket"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "travellerId",
+              "train"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "flight"
+                ]
+              },
+              "travellerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "approverId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "costCenterId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "nullable": true
+              },
+              "costCenterReason": {
+                "type": "string",
+                "maxLength": 500,
+                "nullable": true
+              },
+              "recharge": {
+                "type": "object",
+                "properties": {
+                  "customer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "projectNumber": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "customer",
+                  "projectNumber"
+                ],
+                "additionalProperties": false,
+                "nullable": true
+              },
+              "comment": {
+                "type": "string",
+                "maxLength": 2000,
+                "nullable": true
+              },
+              "flight": {
+                "type": "object",
+                "properties": {
+                  "tripType": {
+                    "type": "string",
+                    "enum": [
+                      "one_way",
+                      "return"
+                    ]
+                  },
+                  "outboundDepartureAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "outboundFrom": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "outboundTo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "returnDepartureAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "nullable": true
+                  },
+                  "returnFrom": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "returnTo": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "nullable": true
+                  },
+                  "handLuggageOnly": {
+                    "type": "boolean"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "tripType",
+                  "outboundDepartureAt",
+                  "outboundFrom",
+                  "outboundTo",
+                  "handLuggageOnly"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "travellerId",
+              "flight"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CarDetailDto_Output": {
+        "type": "object",
+        "properties": {
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "car",
+              "van"
+            ]
+          },
+          "carClass": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "isDefault": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "code",
+              "name",
+              "isDefault"
+            ],
+            "additionalProperties": false
+          },
+          "pickupAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "returnAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "equipment": {
+            "type": "object",
+            "properties": {
+              "estate": {
+                "type": "boolean"
+              },
+              "navigation": {
+                "type": "boolean"
+              },
+              "automaticPreferred": {
+                "type": "boolean"
+              },
+              "automaticRequired": {
+                "type": "boolean"
+              },
+              "diesel": {
+                "type": "boolean"
+              },
+              "winterTyres": {
+                "type": "boolean"
+              },
+              "foreignTravel": {
+                "type": "boolean"
+              },
+              "childSeat": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "estate",
+              "navigation",
+              "automaticPreferred",
+              "automaticRequired",
+              "diesel",
+              "winterTyres",
+              "foreignTravel",
+              "childSeat"
+            ],
+            "additionalProperties": false
+          },
+          "foreignCountries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expectedKmPerDay": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "minPayloadKg": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "nullable": true
+          },
+          "handover": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "branch",
+                  "delivery"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "address": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Address_Output"
+                  }
+                ],
+                "nullable": true
+              }
+            },
+            "required": [
+              "mode",
+              "branch",
+              "address"
+            ],
+            "additionalProperties": false
+          },
+          "dropOff": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "branch",
+                  "collection"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "address": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Address_Output"
+                  }
+                ],
+                "nullable": true
+              }
+            },
+            "required": [
+              "mode",
+              "branch",
+              "address"
+            ],
+            "additionalProperties": false
+          },
+          "driver": {
+            "type": "object",
+            "properties": {
+              "firstName": {
+                "type": "string"
+              },
+              "lastName": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              },
+              "birthDate": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "licenceNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "additionalDrivers": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "firstName",
+              "lastName",
+              "email",
+              "phone",
+              "birthDate",
+              "licenceNumber",
+              "additionalDrivers"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "specialEquipmentReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "vehicleType",
+          "carClass",
+          "pickupAt",
+          "returnAt",
+          "destination",
+          "equipment",
+          "foreignCountries",
+          "expectedKmPerDay",
+          "minPayloadKg",
+          "handover",
+          "dropOff",
+          "driver",
+          "specialEquipmentReason"
+        ],
+        "additionalProperties": false
+      },
+      "Address_Output": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "houseNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "postalCode": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 12
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "required": [
+          "street",
+          "houseNumber",
+          "postalCode",
+          "city",
+          "countryCode"
+        ],
+        "additionalProperties": false
+      },
+      "TrainDetailDto_Output": {
+        "type": "object",
+        "properties": {
+          "tripType": {
+            "type": "string",
+            "enum": [
+              "one_way",
+              "return"
+            ]
+          },
+          "outboundAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "returnAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "fromStation": {
+            "type": "string"
+          },
+          "viaStation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "toStation": {
+            "type": "string"
+          },
+          "fareType": {
+            "type": "string",
+            "enum": [
+              "saver",
+              "flex"
+            ]
+          },
+          "seatReservations": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "separateTickets": {
+            "type": "boolean"
+          },
+          "localTransportTicket": {
+            "type": "boolean"
+          },
+          "companions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserRef_Output"
+            }
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "tripType",
+          "outboundAt",
+          "returnAt",
+          "fromStation",
+          "viaStation",
+          "toStation",
+          "fareType",
+          "seatReservations",
+          "separateTickets",
+          "localTransportTicket",
+          "companions",
+          "notes"
+        ],
+        "additionalProperties": false
+      },
+      "FlightDetailDto_Output": {
+        "type": "object",
+        "properties": {
+          "tripType": {
+            "type": "string",
+            "enum": [
+              "one_way",
+              "return"
+            ]
+          },
+          "outboundDepartureAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "outboundFrom": {
+            "type": "string"
+          },
+          "outboundTo": {
+            "type": "string"
+          },
+          "returnDepartureAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "returnFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "returnTo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "handLuggageOnly": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "tripType",
+          "outboundDepartureAt",
+          "outboundFrom",
+          "outboundTo",
+          "returnDepartureAt",
+          "returnFrom",
+          "returnTo",
+          "handLuggageOnly",
+          "notes"
+        ],
+        "additionalProperties": false
+      },
+      "Decision_Output": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "by": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRef_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "actingAs": {
+            "type": "string",
+            "enum": [
+              "self",
+              "requester",
+              "approver",
+              "deputy",
+              "manager_chain",
+              "executive",
+              "back_office",
+              "admin",
+              "system"
+            ]
+          },
+          "autoApproval": {
+            "type": "string",
+            "enum": [
+              "executive_self",
+              "requester_is_approver",
+              "same_approver",
+              null
+            ],
+            "nullable": true
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "by",
+          "actingAs",
+          "autoApproval",
+          "comment"
+        ],
+        "additionalProperties": false
+      },
+      "TravelBookingDto_Output": {
+        "type": "object",
+        "properties": {
+          "bookingNumber": {
+            "type": "string"
+          },
+          "pinAvailable": {
+            "type": "boolean"
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bookedBy": {
+            "$ref": "#/components/schemas/UserRef_Output"
+          },
+          "bookedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentDto_Output"
+            }
+          }
+        },
+        "required": [
+          "bookingNumber",
+          "pinAvailable",
+          "comment",
+          "bookedBy",
+          "bookedAt",
+          "attachments"
+        ],
+        "additionalProperties": false
+      },
+      "TravelRequestDetailDto_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "car",
+              "train",
+              "flight"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_approval",
+              "to_book",
+              "booked",
+              "declined",
+              "booking_impossible",
+              "cancellation_requested",
+              "cancelled"
+            ]
+          },
+          "traveller": {
+            "$ref": "#/components/schemas/UserRef_Output"
+          },
+          "requester": {
+            "$ref": "#/components/schemas/UserRef_Output"
+          },
+          "approver": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRef_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "approverReason": {
+            "type": "string",
+            "enum": [
+              "direct_manager",
+              "site_manager_escalation",
+              "manager_unavailable",
+              "executive_self",
+              "fallback",
+              null
+            ],
+            "nullable": true
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "route": {
+            "type": "string"
+          },
+          "needsApproval": {
+            "type": "boolean"
+          },
+          "approvalReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TravelReasonDto_Output"
+            }
+          },
+          "approvalExemption": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TravelExemptionDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "isHighPriority": {
+            "type": "boolean"
+          },
+          "actingAs": {
+            "type": "string",
+            "enum": [
+              "self",
+              "requester",
+              "approver",
+              "deputy",
+              "manager_chain",
+              "executive",
+              "back_office",
+              "admin",
+              "system",
+              null
+            ],
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "availableActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "decline",
+                "withdraw",
+                "request_cancellation",
+                "confirm_cancellation",
+                "reject_cancellation",
+                "book",
+                "mark_booking_impossible",
+                "retry_booking",
+                "close",
+                "view_pin"
+              ]
+            }
+          },
+          "escalatedFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRef_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "approverSelection": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "manual",
+              null
+            ],
+            "nullable": true
+          },
+          "costCenter": {
+            "$ref": "#/components/schemas/Ref_Output"
+          },
+          "costCenterReason": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recharge": {
+            "type": "object",
+            "properties": {
+              "customer": {
+                "type": "string"
+              },
+              "projectNumber": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "customer",
+              "projectNumber"
+            ],
+            "additionalProperties": false,
+            "nullable": true
+          },
+          "comment": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "car": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CarDetailDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "train": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TrainDetailDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "flight": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FlightDetailDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "approval": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Decision_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "declinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "declineReason": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bookingImpossibleReason": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cancellationRequestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "cancellationReason": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+            "nullable": true
+          },
+          "booking": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TravelBookingDto_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "reference",
+          "kind",
+          "status",
+          "traveller",
+          "requester",
+          "approver",
+          "approverReason",
+          "startsAt",
+          "endsAt",
+          "route",
+          "needsApproval",
+          "approvalReasons",
+          "approvalExemption",
+          "isHighPriority",
+          "actingAs",
+          "createdAt",
+          "updatedAt",
+          "availableActions",
+          "escalatedFrom",
+          "approverSelection",
+          "costCenter",
+          "costCenterReason",
+          "recharge",
+          "comment",
+          "car",
+          "train",
+          "flight",
+          "approval",
+          "declinedAt",
+          "declineReason",
+          "bookingImpossibleReason",
+          "cancellationRequestedAt",
+          "cancellationReason",
+          "cancelledAt",
+          "booking",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "TravelPinDto_Output": {
+        "type": "object",
+        "properties": {
+          "pin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pin"
+        ],
+        "additionalProperties": false
+      },
+      "TimelineEntry_Output": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRef_Output"
+              }
+            ],
+            "nullable": true
+          },
+          "actingAs": {
+            "type": "string",
+            "enum": [
+              "self",
+              "requester",
+              "approver",
+              "deputy",
+              "manager_chain",
+              "executive",
+              "back_office",
+              "admin",
+              "system"
+            ]
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "entityLabel": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "fromState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "toState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldChange_Output"
+            },
+            "nullable": true
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "actor",
+          "actingAs",
+          "entityType",
+          "entityId",
+          "entityLabel",
+          "action",
+          "fromState",
+          "toState",
+          "reason",
+          "changes",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "TravelTimelineDto_Output": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TimelineEntry_Output"
+        }
       },
       "ProblemDetails": {
         "type": "object",
