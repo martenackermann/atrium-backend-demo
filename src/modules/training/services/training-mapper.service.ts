@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { money, toRef, toUserRef, toUserRefOrNull } from '@/common/domain/mappers';
-import type { ActingAs } from '@/common/domain/vocabulary';
+import type { ActingAs, AutoApproval } from '@/common/domain/vocabulary';
 import { Clock } from '@/common/time/clock.service';
 import { isoFromDate } from '@/common/time/time';
 import { AppConfig } from '@/config/app-config';
@@ -82,7 +82,7 @@ export class TrainingMapper {
     at: Date | null,
     by: User | null,
     as: ActingAs | null,
-    auto: TrainingAttendeeView['approverReason'] | string | null,
+    auto: AutoApproval | null,
     comment: string | null,
   ): Decision {
     if (!at) return null;
@@ -90,7 +90,7 @@ export class TrainingMapper {
       at: at.toISOString(),
       by: toUserRefOrNull(by),
       actingAs: as ?? 'system',
-      autoApproval: (auto as NonNullable<Decision>['autoApproval']) ?? null,
+      autoApproval: auto,
       comment,
     };
   }

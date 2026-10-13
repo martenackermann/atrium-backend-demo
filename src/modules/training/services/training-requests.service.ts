@@ -61,7 +61,8 @@ export class TrainingRequestsService {
 
   async list(user: AuthUser, ability: AppAbility, query: ListRequestsQuery) {
     const viewer = await this.access.viewer(user, ability);
-    if (query.scope === 'all' && !viewer.isBackOffice) throw ProblemException.forbidden('Only the training office can list all requests.');
+    if (query.scope === 'all' && !viewer.isBackOffice)
+      throw ProblemException.forbidden('Only the training office can list all requests.');
     const and: Prisma.TrainingRequestWhereInput[] = [query.scope === 'all' ? {} : { requesterId: user.id }];
     if (query.q) {
       const num = parseTrainingReference(query.q);
@@ -81,12 +82,15 @@ export class TrainingRequestsService {
     if (query.billingStatus) and.push({ billingStatus: { in: query.billingStatus } });
     if (query.attendeeStatus) and.push({ attendees: { some: { status: { in: query.attendeeStatus } } } });
     const where: Prisma.TrainingRequestWhereInput = { AND: and };
-    const orderBy = [...toPrismaOrderBy(query.sort, REQUEST_SORT), { id: 'desc' }] as Prisma.TrainingRequestOrderByWithRelationInput[];
+    const orderBy = [
+      ...toPrismaOrderBy(query.sort, REQUEST_SORT),
+      { id: 'desc' },
+    ] as Prisma.TrainingRequestOrderByWithRelationInput[];
     return paginate(
       query,
       async (page) =>
-        (await this.prisma.trainingRequest.findMany({ where, orderBy, include: requestCoreInclude, ...page })).map((r) =>
-          this.mapper.requestSummary(r, viewer),
+        (await this.prisma.trainingRequest.findMany({ where, orderBy, include: requestCoreInclude, ...page })).map(
+          (r) => this.mapper.requestSummary(r, viewer),
         ),
       () => this.prisma.trainingRequest.count({ where }),
     );
@@ -95,7 +99,10 @@ export class TrainingRequestsService {
   // --- Detail --------------------------------------------------------------------------
 
   private async findVisible(id: string, viewer: TrainingViewer, db: PrismaTx = this.prisma): Promise<RequestCoreRow> {
-    const row = await db.trainingRequest.findFirst({ where: { id, ...viewer.requestWhere() }, include: requestCoreInclude });
+    const row = await db.trainingRequest.findFirst({
+      where: { id, ...viewer.requestWhere() },
+      include: requestCoreInclude,
+    });
     if (!row) throw ProblemException.notFound('Training request');
     return row;
   }
@@ -109,7 +116,7 @@ export class TrainingRequestsService {
     return (await db.trainingAttendee.count({ where: { requestId, managerDecisionAt: { not: null } } })) === 0;
   }
 
-  async requestActions(row: RequestCoreRow, viewer: TrainingViewer): Promise<RequestAction[]> {
+  requestActions(row: RequestCoreRow, viewer: TrainingViewer): RequestAction[] {
     const actions: RequestAction[] = [];
     const requester = this.isRequester(row, viewer.user);
     const allPending = row.attendees.every((a) => a.status === 'pending_manager_approval');
@@ -142,7 +149,7 @@ export class TrainingRequestsService {
         : null,
       attachments: await this.attachments.listFor('training_request', id),
       attendees,
-      availableActions: await this.requestActions(row, viewer),
+      availableActions: this.requestActions(row, viewer),
       version: row.version,
     };
   }
@@ -172,7 +179,9 @@ export class TrainingRequestsService {
     const attendees = body.attendees.map(({ userId }) => {
       const subject = viewer.org.require(userId);
       // Required but not chosen yet: plan with a placeholder executive (never the requester).
-      const execForPlan = executiveStepRequired ? (executiveApproverId ?? '00000000-0000-0000-0000-000000000000') : null;
+      const execForPlan = executiveStepRequired
+        ? (executiveApproverId ?? '00000000-0000-0000-0000-000000000000')
+        : null;
       const plan = this.entry.plan(viewer.org, userId, user.id, execForPlan);
       const allowed = subject.active && viewer.mayActFor(userId);
       const approver = plan.resolution.approver;
@@ -231,7 +240,9 @@ export class TrainingRequestsService {
     if (fields.costCents >= threshold) {
       const exec = fields.executiveApproverId ? viewer.org.get(fields.executiveApproverId) : undefined;
       if (!fields.executiveApproverId)
-        errors.executiveApproverId = [`Trainings from ${formatMoney(threshold)} per attendee need an executive approver.`];
+        errors.executiveApproverId = [
+          `Trainings from ${formatMoney(threshold)} per attendee need an executive approver.`,
+        ];
       else if (!exec || !exec.active || !exec.isExecutive) errors.executiveApproverId = ['Pick an active executive.'];
     } else if (fields.executiveApproverId) {
       errors.executiveApproverId = ['An executive approver is only needed from the threshold. Remove it.'];
@@ -249,12 +260,7 @@ export class TrainingRequestsService {
     const id = await this.prisma.$transaction(async (tx) => {
       const viewer = await this.access.viewer(user, undefined, tx);
       const errors: FieldErrors = {
-        ...(await this.validateRequestFields(
-          tx,
-          viewer,
-          { ...body, costCents: body.cost.amountCents },
-          true,
-        )),
+        ...(await this.validateRequestFields(tx, viewer, { ...body, costCents: body.cost.amountCents }, true)),
         ...(await this.entry.validateAttendees(tx, body.attendees, viewer, body)),
       };
       if (Object.keys(errors).length) throw ProblemException.validation(errors);
@@ -327,7 +333,8 @@ export class TrainingRequestsService {
       const viewer = await this.access.viewer(user, undefined, tx);
       const row = await this.findVisible(id, viewer, tx);
       const requester = this.isRequester(row, user);
-      if (!requester && !viewer.isBackOffice) throw ProblemException.forbidden('Only the requester or the training office can edit this request.');
+      if (!requester && !viewer.isBackOffice)
+        throw ProblemException.forbidden('Only the requester or the training office can edit this request.');
       if (body.version !== undefined && body.version !== row.version) throw ProblemException.versionConflict();
       if (!viewer.isBackOffice && !row.attendees.every((a) => a.status === 'pending_manager_approval')) {
         throw ProblemException.conflict(
@@ -355,7 +362,8 @@ export class TrainingRequestsService {
         format: body.format ?? row.format,
         location: body.location !== undefined ? body.location : row.location,
         registrationUrl: body.registrationUrl !== undefined ? body.registrationUrl : row.registrationUrl,
-        registrationDetails: body.registrationDetails !== undefined ? body.registrationDetails : row.registrationDetails,
+        registrationDetails:
+          body.registrationDetails !== undefined ? body.registrationDetails : row.registrationDetails,
         startsOn: body.startsOn ?? isoFromDate(row.startsOn),
         endsOn: body.endsOn ?? isoFromDate(row.endsOn),
         costCents,
@@ -378,7 +386,7 @@ export class TrainingRequestsService {
         startsOn: isoFromDate(row.startsOn),
         endsOn: isoFromDate(row.endsOn),
       } as unknown as Record<string, unknown>;
-      const changes = this.audit.diff('training_request', before, next as unknown as Record<string, unknown>, [
+      const changes = this.audit.diff('training_request', before, next, [
         'topic',
         'provider',
         'format',
@@ -398,7 +406,7 @@ export class TrainingRequestsService {
         where: { id, version: row.version },
         data: {
           ...next,
-          format: next.format as RequestCoreRow['format'],
+          format: next.format,
           startsOn: dateFromIso(next.startsOn),
           endsOn: dateFromIso(next.endsOn),
           version: { increment: 1 },
@@ -439,7 +447,8 @@ export class TrainingRequestsService {
     await this.prisma.$transaction(async (tx) => {
       const viewer = await this.access.viewer(user, undefined, tx);
       const row = await this.findVisible(id, viewer, tx);
-      if (!viewer.isBackOffice) throw ProblemException.forbidden('Only the training office can edit the billing details.');
+      if (!viewer.isBackOffice)
+        throw ProblemException.forbidden('Only the training office can edit the billing details.');
       if (body.version !== undefined && body.version !== row.version) throw ProblemException.versionConflict();
       const billingStatus = body.billingStatus ?? row.billingStatus;
       let actualCostCents =
@@ -451,7 +460,7 @@ export class TrainingRequestsService {
         actualCostCents,
         backOfficeComment: body.backOfficeComment !== undefined ? body.backOfficeComment : row.backOfficeComment,
       };
-      const changes = this.audit.diff('training_request', row as unknown as Record<string, unknown>, next, [
+      const changes = this.audit.diff('training_request', row, next, [
         'billingStatus',
         'actualCostCents',
         'backOfficeComment',
@@ -539,7 +548,9 @@ export class TrainingRequestsService {
       const row = await this.findVisible(id, viewer, tx);
       if (!this.isRequester(row, user) && !viewer.isBackOffice)
         throw ProblemException.forbidden('Only the requester or the training office can add documents.');
-      const existing = await tx.attachment.count({ where: { entityType: 'training_request', entityId: id, deletedAt: null } });
+      const existing = await tx.attachment.count({
+        where: { entityType: 'training_request', entityId: id, deletedAt: null },
+      });
       if (existing + attachmentIds.length > 10)
         throw ProblemException.fieldError('attachmentIds', 'A request can hold at most 10 documents.');
       await this.attachments.link(tx, {

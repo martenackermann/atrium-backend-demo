@@ -49,7 +49,13 @@ export function planEntry(
   }
   if (resolution.auto === 'requester_is_approver') {
     if (!execRequired) {
-      return { resolution, initialState: 'to_book', managerAuto: 'requester_is_approver', executiveAuto: null, executiveApproverId };
+      return {
+        resolution,
+        initialState: 'to_book',
+        managerAuto: 'requester_is_approver',
+        executiveAuto: null,
+        executiveApproverId,
+      };
     }
     if (executiveApproverId === requesterId) {
       return {
@@ -68,7 +74,13 @@ export function planEntry(
       executiveApproverId,
     };
   }
-  return { resolution, initialState: 'pending_manager_approval', managerAuto: null, executiveAuto: null, executiveApproverId };
+  return {
+    resolution,
+    initialState: 'pending_manager_approval',
+    managerAuto: null,
+    executiveAuto: null,
+    executiveApproverId,
+  };
 }
 
 export interface RequestDates {

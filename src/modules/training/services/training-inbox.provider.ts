@@ -10,7 +10,14 @@ import {
   type InboxProvider,
   RegisterInboxProvider,
 } from '@/modules/core/contracts/inbox.contract';
-import { formatDate, formatDateRange, formatMoney, isHighPriority, ratingState, trainingReference } from '../training.constants';
+import {
+  formatDate,
+  formatDateRange,
+  formatMoney,
+  isHighPriority,
+  ratingState,
+  trainingReference,
+} from '../training.constants';
 import { TrainingAccess } from './training-access.service';
 import { RATEABLE_ATTENDEE } from './training-ratings.service';
 

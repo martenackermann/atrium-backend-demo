@@ -405,7 +405,7 @@ export class TrainingNotifier {
         context: {
           ...this.base(row),
           ratingId: rating.id,
-          loop: rating.loop as 1 | 2 | 3,
+          loop: rating.loop,
           dueDate: formatDate(isoDateInZone(rating.dueAt, this.clock.timeZone), today),
           reminder: rating.reminderCount,
           reminderMax: this.config.get('RATING_REMINDER_MAX'),

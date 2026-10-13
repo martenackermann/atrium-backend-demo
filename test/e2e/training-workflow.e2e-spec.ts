@@ -49,7 +49,12 @@ describe('training participation workflow', () => {
         .http()
         .post(`${API}/training/requests`)
         .set('Authorization', auth)
-        .send(requestBody(attendees.map((userId) => ({ userId })), overrides))
+        .send(
+          requestBody(
+            attendees.map((userId) => ({ userId })),
+            overrides,
+          ),
+        )
         .expect(201)
     ).body as { id: string; attendees: { id: string; status: string }[] };
   const auditOf = (id: string) =>
@@ -67,7 +72,12 @@ describe('training participation workflow', () => {
         request: { reference: 'TRN-000001' },
       });
       const audit = await auditOf(id);
-      expect(audit.at(-1)).toMatchObject({ action: 'approve', actingAs: 'approver', fromState: 'pending_manager_approval', toState: 'to_book' });
+      expect(audit.at(-1)).toMatchObject({
+        action: 'approve',
+        actingAs: 'approver',
+        fromState: 'pending_manager_approval',
+        toState: 'to_book',
+      });
       const mails = (await t.prisma.emailMessage.findMany({ where: { entityId: id } })).map((m) => m.templateId);
       expect(mails).toEqual(expect.arrayContaining(['training.participation_approved', 'training.booking_requested']));
     });
@@ -80,7 +90,7 @@ describe('training participation workflow', () => {
       expect(audit.at(-1)).toMatchObject({ action: 'approve', actingAs: 'deputy' });
     });
 
-    it('manager chain overrides a manager step (Max for the Eastgate lead\'s report)', async () => {
+    it("manager chain overrides a manager step (Max for the Eastgate lead's report)", async () => {
       const id = await attendeeId(t, 14);
       const list = await t
         .http()
@@ -155,7 +165,11 @@ describe('training participation workflow', () => {
       const final = await act(clara, id, 'approve', { comment: 'Approved for the leadership track' }).expect(200);
       expect(final.body).toMatchObject({
         status: 'to_book',
-        executiveDecision: { actingAs: 'executive', by: { id: ids.clara }, comment: 'Approved for the leadership track' },
+        executiveDecision: {
+          actingAs: 'executive',
+          by: { id: ids.clara },
+          comment: 'Approved for the leadership track',
+        },
       });
     });
 
@@ -236,7 +250,9 @@ describe('training participation workflow', () => {
       }).expect(200);
       expect(res.body).toMatchObject({ status: 'booked', bookingReference: 'HTG-1' });
       expect(res.body.attachments.map((a: { id: string }) => a.id)).toEqual([upload.body.id]);
-      expect(res.body.ratings).toEqual([expect.objectContaining({ loop: 1, state: 'upcoming', rater: expect.objectContaining({ id: ids.max }) })]);
+      expect(res.body.ratings).toEqual([
+        expect.objectContaining({ loop: 1, state: 'upcoming', rater: expect.objectContaining({ id: ids.max }) }),
+      ]);
       expect(res.body.availableActions).toEqual([]); // computed for the office
       const asMax = await get(max, id).expect(200);
       expect(asMax.body.availableActions).toEqual(['request_cancellation', 'edit_goals']);
@@ -259,8 +275,13 @@ describe('training participation workflow', () => {
 
     it('booking impossible -> retry -> to_book; it_admin acts as admin', async () => {
       const id = await attendeeId(t, 20); // to_book d+25
-      const res = await act(ian, id, 'mark_booking_impossible', { reason: 'Course cancelled by the provider' }).expect(200);
-      expect(res.body).toMatchObject({ status: 'booking_impossible', bookingImpossibleReason: 'Course cancelled by the provider' });
+      const res = await act(ian, id, 'mark_booking_impossible', { reason: 'Course cancelled by the provider' }).expect(
+        200,
+      );
+      expect(res.body).toMatchObject({
+        status: 'booking_impossible',
+        bookingImpossibleReason: 'Course cancelled by the provider',
+      });
       expect((await auditOf(id)).at(-1)).toMatchObject({ actingAs: 'admin' });
       const asTina = await get(tina, id).expect(200);
       expect(asTina.body.availableActions).toEqual(['retry_booking', 'close']);
@@ -290,7 +311,10 @@ describe('training participation workflow', () => {
       const created = await newRequest(tina, [ids.arne], { startsOn: d(0), endsOn: d(1) });
       const id = created.attendees[0].id;
       await t.prisma.trainingAttendee.update({ where: { id }, data: { status: 'booking_impossible' } });
-      await t.prisma.trainingRequest.update({ where: { id: created.id }, data: { startsOn: new Date(`${d(-1)}T00:00:00.000Z`) } });
+      await t.prisma.trainingRequest.update({
+        where: { id: created.id },
+        data: { startsOn: new Date(`${d(-1)}T00:00:00.000Z`) },
+      });
       const res = await act(tina, id, 'retry_booking').expect(409);
       expect(res.body.code).toBe('invalid_transition');
     });
@@ -300,9 +324,16 @@ describe('training participation workflow', () => {
     it('request (owner) -> confirm (office) deletes the open loop-1 rating', async () => {
       const id = await attendeeId(t, 2); // S-T2 Emma booked, d+6
       await act(max, id, 'request_cancellation', { reason: 'Team needs her' }).expect(403);
-      const req = await act(emma, id, 'request_cancellation', { reason: 'Clashes with the Westbay rollout.' }).expect(200);
-      expect(req.body).toMatchObject({ status: 'cancellation_requested', cancellationReason: 'Clashes with the Westbay rollout.' });
-      const mail = await t.prisma.emailMessage.findFirstOrThrow({ where: { entityId: id, templateId: 'training.cancellation_requested' } });
+      const req = await act(emma, id, 'request_cancellation', { reason: 'Clashes with the Westbay rollout.' }).expect(
+        200,
+      );
+      expect(req.body).toMatchObject({
+        status: 'cancellation_requested',
+        cancellationReason: 'Clashes with the Westbay rollout.',
+      });
+      const mail = await t.prisma.emailMessage.findFirstOrThrow({
+        where: { entityId: id, templateId: 'training.cancellation_requested' },
+      });
       expect(mail.to).toEqual(['training-office@example.com']);
       expect(await t.prisma.trainingRating.count({ where: { attendeeId: id } })).toBe(1);
       const res = await act(tina, id, 'confirm_cancellation', { comment: 'Fee refunded' }).expect(200);
@@ -312,7 +343,9 @@ describe('training participation workflow', () => {
 
     it('reject restores the previous state (booked or to_book)', async () => {
       const booked = await attendeeId(t, 15, 1); // hilTech4: cancellation requested from booked
-      const r1 = await act(tina, booked, 'reject_cancellation', { reason: 'Non-refundable at this point.' }).expect(200);
+      const r1 = await act(tina, booked, 'reject_cancellation', { reason: 'Non-refundable at this point.' }).expect(
+        200,
+      );
       expect(r1.body).toMatchObject({ status: 'booked', cancellationRequestedAt: null });
       const toBook = await attendeeId(t, 18, 1); // sdkAgent2: from to_book
       await act(emma, toBook, 'reject_cancellation', { reason: 'nope nope' }).expect(404);
@@ -372,12 +405,19 @@ describe('training participation workflow', () => {
       const list = (auth: string, query: string) =>
         t.http().get(`${API}/training/participations?${query}`).set('Authorization', auth);
       const executive = await list(clara, 'scope=executive').expect(200);
-      expect(executive.body.data.every((r: { actingAs: string; status: string }) => r.actingAs === 'executive' && r.status === 'pending_executive_approval')).toBe(true);
+      expect(
+        executive.body.data.every(
+          (r: { actingAs: string; status: string }) =>
+            r.actingAs === 'executive' && r.status === 'pending_executive_approval',
+        ),
+      ).toBe(true);
       const deputy = await list(helen, 'scope=deputy').expect(200);
       expect(deputy.body.data.every((r: { actingAs: string }) => r.actingAs === 'deputy')).toBe(true);
       const mine = await list(emma, 'scope=mine&perPage=100').expect(200);
       expect(mine.body.data.every((r: { user: { id: string } }) => r.user.id === ids.emma)).toBe(true);
-      const withRating = mine.body.data.find((r: { request: { reference: string } }) => r.request.reference === 'TRN-000004');
+      const withRating = mine.body.data.find(
+        (r: { request: { reference: string } }) => r.request.reference === 'TRN-000004',
+      );
       expect(withRating).toMatchObject({ goalsSet: true, openRating: { loop: 2, state: 'due' } });
       await list(emma, 'scope=all').expect(403);
       const all = await list(tina, 'scope=all&highPriority=true').expect(200);
@@ -389,10 +429,18 @@ describe('training participation workflow', () => {
     it('participation timeline hides loop-3 entries from the attendee', async () => {
       const id = await attendeeId(t, 26, 0); // sdkLead, loop 3 with reminders
       const lead = (await attendeesOf(t, 26)).attendees[0];
-      const office = await t.http().get(`${API}/training/participations/${id}/timeline`).set('Authorization', tina).expect(200);
+      const office = await t
+        .http()
+        .get(`${API}/training/participations/${id}/timeline`)
+        .set('Authorization', tina)
+        .expect(200);
       expect(office.body.some((e: { entityLabel: string }) => e.entityLabel === 'Feedback round 3')).toBe(true);
       const leadAuth = await loginEmail(t, lead.user.email);
-      const own = await t.http().get(`${API}/training/participations/${id}/timeline`).set('Authorization', leadAuth).expect(200);
+      const own = await t
+        .http()
+        .get(`${API}/training/participations/${id}/timeline`)
+        .set('Authorization', leadAuth)
+        .expect(200);
       expect(own.body.some((e: { entityLabel: string }) => e.entityLabel === 'Feedback round 3')).toBe(false);
     });
 

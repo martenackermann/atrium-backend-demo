@@ -95,7 +95,8 @@ export class TrainingJobs {
     slice: 'A1',
     cronEnv: 'CRON_TRAINING_GOALS',
     reminder: true,
-    description: 'Reminds booked attendees to set their learning goals GOALS_REMINDER_DAYS_BEFORE days before the start.',
+    description:
+      'Reminds booked attendees to set their learning goals GOALS_REMINDER_DAYS_BEFORE days before the start.',
   })
   async goalsReminders(ctx: JobRunContext): Promise<JobSummary> {
     const horizon = addDaysIso(ctx.today, this.config.get('GOALS_REMINDER_DAYS_BEFORE'));

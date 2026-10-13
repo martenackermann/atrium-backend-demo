@@ -12,8 +12,16 @@
 export type At = [day: number, hh: number, mm: number];
 
 export type Rating1 = { participated: boolean; grades?: [number, number, number]; comment?: string };
-export type Rating2 = { answers: ['A' | 'B' | 'C' | 'D', 'A' | 'B' | 'C' | 'D', 'A' | 'B' | 'C' | 'D']; comment?: string };
-export type Rating3 = { improvement: 1 | 2 | 3 | 4; certification: boolean; certificationComment?: string; comment?: string };
+export type Rating2 = {
+  answers: ['A' | 'B' | 'C' | 'D', 'A' | 'B' | 'C' | 'D', 'A' | 'B' | 'C' | 'D'];
+  comment?: string;
+};
+export type Rating3 = {
+  improvement: 1 | 2 | 3 | 4;
+  certification: boolean;
+  certificationComment?: string;
+  comment?: string;
+};
 
 export type StoryStep =
   | { kind: 'approve'; at: At; by: string; comment?: string }
@@ -515,7 +523,12 @@ export const TRAINING_STORY: StoryRequest[] = [
         reason: 'direct_manager',
         auto: 'requester_is_approver',
         steps: [
-          { kind: 'request_cancellation', at: [-1, 9, 40], by: 'sdkAgent2', reason: 'Moved to the night shift that week.' },
+          {
+            kind: 'request_cancellation',
+            at: [-1, 9, 40],
+            by: 'sdkAgent2',
+            reason: 'Moved to the night shift that week.',
+          },
         ],
       },
     ],
@@ -920,14 +933,56 @@ export const TRAINING_STORY_NOTIFICATIONS: {
   at: At;
   read: boolean;
 }[] = [
-  { request: 1, attendee: 'emma', template: 'training.participation_created', to: 'emma', at: [-2, 10, 12], read: false },
+  {
+    request: 1,
+    attendee: 'emma',
+    template: 'training.participation_created',
+    to: 'emma',
+    at: [-2, 10, 12],
+    read: false,
+  },
   { request: 2, attendee: 'emma', template: 'training.participation_booked', to: 'emma', at: [-9, 14, 20], read: true },
-  { request: 6, attendee: 'emma', template: 'training.participation_declined', to: 'emma', at: [-40, 9, 50], read: true },
+  {
+    request: 6,
+    attendee: 'emma',
+    template: 'training.participation_declined',
+    to: 'emma',
+    at: [-40, 9, 50],
+    read: true,
+  },
   { request: 1, attendee: 'emma', template: 'training.approval_requested', to: 'max', at: [-2, 10, 12], read: false },
-  { request: 7, attendee: 'hilTech1', template: 'training.approval_requested', to: 'max', at: [-1, 8, 45], read: false },
-  { request: 8, attendee: 'sdkAgent5', template: 'training.approval_requested', to: 'max', at: [-3, 11, 0], read: false },
-  { request: 10, attendee: 'sofia', template: 'training.participation_created', to: 'sofia', at: [-8, 9, 0], read: true },
-  { request: 7, attendee: 'hilTech1', template: 'training.participation_created', to: 'sofia', at: [-1, 8, 45], read: true },
+  {
+    request: 7,
+    attendee: 'hilTech1',
+    template: 'training.approval_requested',
+    to: 'max',
+    at: [-1, 8, 45],
+    read: false,
+  },
+  {
+    request: 8,
+    attendee: 'sdkAgent5',
+    template: 'training.approval_requested',
+    to: 'max',
+    at: [-3, 11, 0],
+    read: false,
+  },
+  {
+    request: 10,
+    attendee: 'sofia',
+    template: 'training.participation_created',
+    to: 'sofia',
+    at: [-8, 9, 0],
+    read: true,
+  },
+  {
+    request: 7,
+    attendee: 'hilTech1',
+    template: 'training.participation_created',
+    to: 'sofia',
+    at: [-1, 8, 45],
+    read: true,
+  },
   {
     request: 9,
     attendee: 'ito2',
@@ -952,7 +1007,28 @@ export const TRAINING_STORY_NOTIFICATIONS: {
     at: [-3, 10, 15],
     read: true,
   },
-  { request: 12, attendee: 'grace', template: 'training.approval_requested', to: 'clara', at: [-1, 14, 30], read: false },
-  { request: 17, attendee: 'helen', template: 'training.participation_created', to: 'helen', at: [-16, 8, 30], read: true },
-  { request: 17, attendee: 'helen', template: 'training.participation_booked', to: 'helen', at: [-13, 15, 0], read: true },
+  {
+    request: 12,
+    attendee: 'grace',
+    template: 'training.approval_requested',
+    to: 'clara',
+    at: [-1, 14, 30],
+    read: false,
+  },
+  {
+    request: 17,
+    attendee: 'helen',
+    template: 'training.participation_created',
+    to: 'helen',
+    at: [-16, 8, 30],
+    read: true,
+  },
+  {
+    request: 17,
+    attendee: 'helen',
+    template: 'training.participation_booked',
+    to: 'helen',
+    at: [-13, 15, 0],
+    read: true,
+  },
 ];

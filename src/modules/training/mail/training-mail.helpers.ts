@@ -27,10 +27,11 @@ export const participationLink = (c: { attendeeId: string }) => `/training/parti
 /** A two-column facts table (label / value); null values are skipped. */
 export function facts(rows: [string, string | null | undefined][]): ReturnType<typeof raw> {
   const visible = rows.filter(([, value]) => value !== null && value !== undefined && value !== '');
-  return raw(mjml`<mj-table cellpadding="4px" font-size="14px">${visible.map(
-    ([label, value]) =>
+  return raw(
+    mjml`<mj-table cellpadding="4px" font-size="14px">${visible.map(([label, value]) =>
       raw(mjml`<tr><td style="color:#6b7785;width:160px;vertical-align:top">${label}</td><td>${value}</td></tr>`),
-  )}</mj-table>`);
+    )}</mj-table>`,
+  );
 }
 
 /** Optional muted paragraph. */

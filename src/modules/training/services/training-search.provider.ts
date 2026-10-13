@@ -33,10 +33,7 @@ export class TrainingSearchProvider implements SearchProvider {
       num !== null
         ? { number: num }
         : {
-            OR: [
-              { topic: { contains: q, mode: 'insensitive' } },
-              { provider: { contains: q, mode: 'insensitive' } },
-            ],
+            OR: [{ topic: { contains: q, mode: 'insensitive' } }, { provider: { contains: q, mode: 'insensitive' } }],
           };
     const requests = await this.prisma.trainingRequest.findMany({
       where: { AND: [text, viewer.requestWhere()] },

@@ -52,7 +52,11 @@ export class TrainingAttendeeWorkflow {
         approve: { ability: false, input: ACTION_BODIES.approve, authorize: decide },
         decline: { ability: false, input: ACTION_BODIES.decline, authorize: decide },
         withdraw: { ability: false, input: ACTION_BODIES.withdraw, authorize: withdraw },
-        request_cancellation: { ability: false, input: ACTION_BODIES.request_cancellation, authorize: ownerOrRequester },
+        request_cancellation: {
+          ability: false,
+          input: ACTION_BODIES.request_cancellation,
+          authorize: ownerOrRequester,
+        },
         confirm_cancellation: { input: ACTION_BODIES.confirm_cancellation },
         reject_cancellation: { input: ACTION_BODIES.reject_cancellation },
         book: { input: ACTION_BODIES.book },
@@ -118,7 +122,7 @@ export class TrainingAttendeeWorkflow {
   ): Promise<AttendeeRow | null> {
     const now = this.clock.now();
     const input = (change.input ?? {}) as Record<string, unknown>;
-    const text = (key: string) => (typeof input[key] === 'string' && input[key] ? (input[key] as string) : null);
+    const text = (key: string) => (typeof input[key] === 'string' && input[key] ? input[key] : null);
     const data: Prisma.TrainingAttendeeUncheckedUpdateManyInput = {
       status: toState as AttendeeRow['status'],
       version: { increment: 1 },
@@ -190,7 +194,11 @@ export class TrainingAttendeeWorkflow {
         Object.assign(data, { cancelledAt: now });
         break;
       case 'reject_cancellation':
-        Object.assign(data, { statusBeforeCancellation: null, cancellationRequestedAt: null, cancellationReason: null });
+        Object.assign(data, {
+          statusBeforeCancellation: null,
+          cancellationRequestedAt: null,
+          cancellationReason: null,
+        });
         break;
       case 'book':
         Object.assign(data, { bookedAt: now, bookedById: change.actor.id, bookingReference: text('bookingReference') });

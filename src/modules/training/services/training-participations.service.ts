@@ -79,7 +79,9 @@ export class TrainingParticipationsService {
     if (row.status === 'pending_manager_approval' && row.approverId)
       return viewer.canDecide({ kind: 'manager', approverId: row.approverId, subjectId: row.userId }) || null;
     if (row.status === 'pending_executive_approval' && row.executiveApproverId)
-      return viewer.canDecide({ kind: 'executive', approverId: row.executiveApproverId, subjectId: row.userId }) || null;
+      return (
+        viewer.canDecide({ kind: 'executive', approverId: row.executiveApproverId, subjectId: row.userId }) || null
+      );
     return null;
   }
 
@@ -106,7 +108,8 @@ export class TrainingParticipationsService {
       case 'team':
         return viewer.treeIds.length ? { userId: { in: viewer.treeIds } } : { id: { in: [] } };
       case 'all':
-        if (!viewer.isBackOffice) throw ProblemException.forbidden('Only the training office can list all participations.');
+        if (!viewer.isBackOffice)
+          throw ProblemException.forbidden('Only the training office can list all participations.');
         return {};
     }
   }
@@ -181,7 +184,9 @@ export class TrainingParticipationsService {
                   : query.scope === 'team'
                     ? this.relation(row, viewer)
                     : null;
-          items.push(this.mapper.listItem(row, actingAs, await this.availableActions(row, user, ability, viewer), viewer));
+          items.push(
+            this.mapper.listItem(row, actingAs, await this.availableActions(row, user, ability, viewer), viewer),
+          );
         }
         return items;
       },
@@ -190,7 +195,11 @@ export class TrainingParticipationsService {
   }
 
   /** Rows for CSV export (scope all, list filters, max 5000). */
-  async exportRows(user: AuthUser, ability: AppAbility, query: Omit<ListParticipationsQuery, 'page' | 'perPage' | 'scope'>) {
+  async exportRows(
+    user: AuthUser,
+    ability: AppAbility,
+    query: Omit<ListParticipationsQuery, 'page' | 'perPage' | 'scope'>,
+  ) {
     const viewer = await this.access.viewer(user, ability);
     if (!viewer.isBackOffice) throw ProblemException.forbidden('Only the training office can export participations.');
     return this.prisma.trainingAttendee.findMany({
@@ -234,7 +243,9 @@ export class TrainingParticipationsService {
     const docs = await this.mapper.bookingDocuments(rows.map((r) => r.id));
     const result: TrainingAttendeeView[] = [];
     for (const row of rows) {
-      result.push(this.mapper.attendee(row, await this.availableActions(row, user, ability, viewer), docs.get(row.id) ?? []));
+      result.push(
+        this.mapper.attendee(row, await this.availableActions(row, user, ability, viewer), docs.get(row.id) ?? []),
+      );
     }
     return result;
   }
@@ -280,15 +291,18 @@ export class TrainingParticipationsService {
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM training_attendees WHERE id = ${id}::uuid FOR UPDATE`;
       const viewer = await this.access.viewer(user, undefined, tx);
-      const row = await tx.trainingAttendee.findFirst({ where: { id, ...viewer.attendeeWhere() }, include: attendeeInclude });
+      const row = await tx.trainingAttendee.findFirst({
+        where: { id, ...viewer.attendeeWhere() },
+        include: attendeeInclude,
+      });
       if (!row) throw ProblemException.notFound('Participation');
       if (row.userId !== user.id) throw ProblemException.forbidden('Only the attendee can set the learning goals.');
       if (!this.canEditGoals(row, viewer))
-        throw ProblemException.conflict('Learning goals can only be changed until the training starts.', 'invalid_transition');
-      const changes = this.audit.diff('training_attendee', row as unknown as Record<string, unknown>, body, [
-        'goal1',
-        'goal2',
-      ]);
+        throw ProblemException.conflict(
+          'Learning goals can only be changed until the training starts.',
+          'invalid_transition',
+        );
+      const changes = this.audit.diff('training_attendee', row, body, ['goal1', 'goal2']);
       await tx.trainingAttendee.update({
         where: { id },
         data: { goal1: body.goal1, goal2: body.goal2, goalsUpdatedAt: this.clock.now(), version: { increment: 1 } },
@@ -323,7 +337,8 @@ export class TrainingParticipationsService {
         { entityType: 'training_attendee', entityId: id },
         ...ratings.map((r) => ({ entityType: 'training_rating', entityId: r.id })),
       ],
-      (e) => (e.entityType === 'training_rating' ? `Feedback round ${loops.get(e.entityId) ?? ''}` : row.user.displayName),
+      (e) =>
+        e.entityType === 'training_rating' ? `Feedback round ${loops.get(e.entityId) ?? ''}` : row.user.displayName,
     );
   }
 }

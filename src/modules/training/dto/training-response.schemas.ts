@@ -219,7 +219,12 @@ export const trainingRatingSchema = z.object({
 });
 export type TrainingRatingView = z.infer<typeof trainingRatingSchema>;
 
-const likertDistribution = z.object({ A: z.number().int(), B: z.number().int(), C: z.number().int(), D: z.number().int() });
+const likertDistribution = z.object({
+  A: z.number().int(),
+  B: z.number().int(),
+  C: z.number().int(),
+  D: z.number().int(),
+});
 
 export const ratingStatsSchema = z.object({
   from: isoDateSchema.nullable(),

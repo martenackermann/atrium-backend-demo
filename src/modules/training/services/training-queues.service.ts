@@ -145,9 +145,11 @@ export class TrainingQueuesService {
         .map(csvCell)
         .join(','),
     );
-    return `﻿${[header.join(','), ...lines].join('\r\n')}\r\n`;
+    return `${BOM}${[header.join(','), ...lines].join('\r\n')}\r\n`;
   }
 }
+
+const BOM = '﻿';
 
 /** Quotes a CSV cell when needed and neutralises spreadsheet formulas. */
 export function csvCell(value: string): string {

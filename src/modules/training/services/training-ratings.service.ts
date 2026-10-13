@@ -115,7 +115,8 @@ export class TrainingRatingsService {
       const viewer = await this.access.viewer(user, undefined, tx);
       const row = await this.findVisible(id, viewer, tx);
       if (row.raterId !== user.id) throw ProblemException.forbidden('Only the rater can submit this feedback.');
-      if (row.submittedAt) throw ProblemException.conflict('This feedback was already submitted.', 'invalid_transition');
+      if (row.submittedAt)
+        throw ProblemException.conflict('This feedback was already submitted.', 'invalid_transition');
       const now = this.clock.now();
       if (row.dueAt.getTime() > now.getTime())
         throw ProblemException.conflict('This feedback round is not due yet.', 'invalid_transition');
@@ -163,7 +164,10 @@ export class TrainingRatingsService {
           input: { participated: body.participated === true },
         });
         const toState = String(next.value) as 'attended' | 'not_attended';
-        await tx.trainingAttendee.update({ where: { id: attendee.id }, data: { status: toState, version: { increment: 1 } } });
+        await tx.trainingAttendee.update({
+          where: { id: attendee.id },
+          data: { status: toState, version: { increment: 1 } },
+        });
         await this.audit.record(
           {
             module: 'training',
@@ -240,7 +244,8 @@ export class TrainingRatingsService {
 
   async stats(user: AuthUser, ability: AppAbility, from?: string, to?: string): Promise<RatingStatsView> {
     const viewer = await this.access.viewer(user, ability);
-    if (!viewer.isBackOffice) throw ProblemException.forbidden('Only the training office can see the rating statistics.');
+    if (!viewer.isBackOffice)
+      throw ProblemException.forbidden('Only the training office can see the rating statistics.');
     const endsOn: Prisma.DateTimeFilter = {};
     if (from) endsOn.gte = dateFromIso(from);
     if (to) endsOn.lte = dateFromIso(to);

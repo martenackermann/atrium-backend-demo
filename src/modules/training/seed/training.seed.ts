@@ -3,6 +3,7 @@ import { addDaysIso, dateFromIso, isoDateInZone, startOfDayInZone } from '@/comm
 import type { Seeder, SeedContext } from '@/database/seed/seed-context';
 import type { Prisma } from '@/generated/prisma/client';
 import { canDecide, OrgSnapshot, resolveApprover } from '@/modules/core/approvals/approval-rules';
+import type { NotificationTemplate } from '@/modules/core/notifications/notification-template';
 import { approvalRequestedNotification } from '../mail/approval-requested.notification';
 import { executiveApprovalRequestedNotification } from '../mail/executive-approval-requested.notification';
 import { participationBookedNotification } from '../mail/participation-booked.notification';
@@ -11,7 +12,13 @@ import { participationDeclinedNotification } from '../mail/participation-decline
 import { planEntry } from '../services/training-entry.service';
 import { formatDateRange, formatMoney, trainingReference } from '../training.constants';
 import { demoPdf } from './demo-pdf';
-import { type At, type StoryAttendee, type StoryRequest, TRAINING_STORY, TRAINING_STORY_NOTIFICATIONS } from './training-story.plan';
+import {
+  type At,
+  type StoryAttendee,
+  type StoryRequest,
+  TRAINING_STORY,
+  TRAINING_STORY_NOTIFICATIONS,
+} from './training-story.plan';
 
 type Status = Prisma.TrainingAttendeeCreateManyInput['status'];
 
@@ -75,6 +82,15 @@ async function orgSnapshot(ctx: SeedContext): Promise<OrgSnapshot> {
   );
 }
 
+/** Title, body and link exactly as NotificationService renders the in-app row. */
+function render<T extends object>(template: NotificationTemplate<T>, c: T) {
+  return {
+    title: template.title?.(c) ?? template.subject(c),
+    body: template.body(c),
+    link: template.link?.(c) ?? null,
+  };
+}
+
 function isWeekend(iso: string): boolean {
   const day = new Date(`${iso}T00:00:00.000Z`).getUTCDay();
   return day === 0 || day === 6;
@@ -103,14 +119,20 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
   const threshold = env.TRAINING_EXECUTIVE_THRESHOLD_CENTS;
 
   const audits: Prisma.AuditLogCreateManyInput[] = [];
-  const audit = (row: Omit<Prisma.AuditLogCreateManyInput, 'id' | 'correlationId' | 'module'> & { label: string }) => {
-    const { label, ...rest } = row;
+  const audit = (
+    row: Omit<Prisma.AuditLogCreateManyInput, 'id' | 'correlationId' | 'module' | 'metadata' | 'occurredAt'> & {
+      occurredAt: Date;
+      label: string;
+      metadata?: Record<string, unknown>;
+    },
+  ) => {
+    const { label, metadata, ...rest } = row;
     audits.push({
       ...rest,
-      id: ctx.uuid(row.occurredAt as Date),
+      id: ctx.uuid(row.occurredAt),
       module: 'training',
       correlationId: 'seed',
-      metadata: { ...((rest.metadata as object | undefined) ?? {}), entityLabel: label },
+      metadata: { ...(metadata ?? {}), entityLabel: label },
     });
   };
   const seeded = new Map<number, { request: StoryRequest; id: string; attendees: SeededAttendee[] }>();
@@ -216,7 +238,8 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
         hotelCostCents: a.hotel?.costCents ?? null,
         createdAt: created,
       };
-      const autoBy = (auto: AutoApproval, approverId: string | null) => (auto === 'executive_self' ? userId : approverId);
+      const autoBy = (auto: AutoApproval, approverId: string | null) =>
+        auto === 'executive_self' ? userId : approverId;
       audit({
         occurredAt: created,
         actorId: requesterId,
@@ -273,7 +296,14 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
 
       let status: Status = plan.initialState;
       const ratings = new Map<number, RatingState>();
-      const transitions: { action: string; occurredAt: Date; actorId: string | null; actingAs: ActingAs; to: Status; reason?: string | null }[] = [];
+      const transitions: {
+        action: string;
+        occurredAt: Date;
+        actorId: string | null;
+        actingAs: ActingAs;
+        to: Status;
+        reason?: string | null;
+      }[] = [];
       const seededAttendee: SeededAttendee = {
         id,
         spec: a,
@@ -356,16 +386,27 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
             if (step.kind === 'decline') {
               row.declineReason = step.reason;
               seededAttendee.declineReason = step.reason;
-              transitions.push({ action: 'decline', occurredAt: when, actorId: uid(step.by), actingAs, to: 'declined', reason: step.reason });
+              transitions.push({
+                action: 'decline',
+                occurredAt: when,
+                actorId: uid(step.by),
+                actingAs,
+                to: 'declined',
+                reason: step.reason,
+              });
               status = 'declined';
               break;
             }
             const execFollows: boolean =
-              !exec && executiveApproverId !== null && executiveApproverId !== uid(step.by) && executiveApproverId !== requesterId;
+              !exec &&
+              executiveApproverId !== null &&
+              executiveApproverId !== uid(step.by) &&
+              executiveApproverId !== requesterId;
             const to: Status = execFollows ? 'pending_executive_approval' : 'to_book';
             transitions.push({ action: 'approve', occurredAt: when, actorId: uid(step.by), actingAs, to });
             if (!exec && !execFollows && executiveApproverId) {
-              const auto: AutoApproval = executiveApproverId === uid(step.by) ? 'same_approver' : 'requester_is_approver';
+              const auto: AutoApproval =
+                executiveApproverId === uid(step.by) ? 'same_approver' : 'requester_is_approver';
               Object.assign(row, {
                 executiveDecisionAt: when,
                 executiveDecisionById: executiveApproverId,
@@ -391,13 +432,26 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
           }
           case 'withdraw':
             Object.assign(row, { cancelledAt: when, cancellationReason: step.reason ?? null });
-            transitions.push({ action: 'withdraw', occurredAt: when, actorId: uid(step.by), actingAs: selfOrRequester(step.by), to: 'cancelled', reason: step.reason ?? null });
+            transitions.push({
+              action: 'withdraw',
+              occurredAt: when,
+              actorId: uid(step.by),
+              actingAs: selfOrRequester(step.by),
+              to: 'cancelled',
+              reason: step.reason ?? null,
+            });
             status = 'cancelled';
             break;
           case 'book': {
             Object.assign(row, { bookedAt: when, bookedById: uid(step.by), bookingReference: step.reference });
             seededAttendee.bookingReference = step.reference;
-            transitions.push({ action: 'book', occurredAt: when, actorId: uid(step.by), actingAs: 'back_office', to: 'booked' });
+            transitions.push({
+              action: 'book',
+              occurredAt: when,
+              actorId: uid(step.by),
+              actingAs: 'back_office',
+              to: 'booked',
+            });
             status = 'booked';
             openRating(1, userId, when, addDaysIso(endsOn, env.RATING_LOOP1_DELAY_DAYS));
             if (step.document) {
@@ -421,17 +475,41 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
           }
           case 'mark_booking_impossible':
             row.bookingImpossibleReason = step.reason;
-            transitions.push({ action: 'mark_booking_impossible', occurredAt: when, actorId: uid(step.by), actingAs: 'back_office', to: 'booking_impossible', reason: step.reason });
+            transitions.push({
+              action: 'mark_booking_impossible',
+              occurredAt: when,
+              actorId: uid(step.by),
+              actingAs: 'back_office',
+              to: 'booking_impossible',
+              reason: step.reason,
+            });
             status = 'booking_impossible';
             break;
           case 'request_cancellation':
-            Object.assign(row, { statusBeforeCancellation: status, cancellationRequestedAt: when, cancellationReason: step.reason });
-            transitions.push({ action: 'request_cancellation', occurredAt: when, actorId: uid(step.by), actingAs: selfOrRequester(step.by), to: 'cancellation_requested', reason: step.reason });
+            Object.assign(row, {
+              statusBeforeCancellation: status,
+              cancellationRequestedAt: when,
+              cancellationReason: step.reason,
+            });
+            transitions.push({
+              action: 'request_cancellation',
+              occurredAt: when,
+              actorId: uid(step.by),
+              actingAs: selfOrRequester(step.by),
+              to: 'cancellation_requested',
+              reason: step.reason,
+            });
             status = 'cancellation_requested';
             break;
           case 'confirm_cancellation': {
             row.cancelledAt = when;
-            transitions.push({ action: 'confirm_cancellation', occurredAt: when, actorId: uid(step.by), actingAs: 'back_office', to: 'cancelled' });
+            transitions.push({
+              action: 'confirm_cancellation',
+              occurredAt: when,
+              actorId: uid(step.by),
+              actingAs: 'back_office',
+              to: 'cancelled',
+            });
             status = 'cancelled';
             const loop1 = ratings.get(1);
             if (loop1 && !loop1.submittedAt) ratings.delete(1);
@@ -448,9 +526,24 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
               expectationsGrade: participated ? grades![2] : null,
               comment: comment ?? null,
             };
-            audit({ occurredAt: when, actorId: userId, actingAs: 'self', entityType: 'training_rating', entityId: rating.id, action: 'submit', metadata: { loop: 1 }, label: `Feedback round 1 · ${label}` });
+            audit({
+              occurredAt: when,
+              actorId: userId,
+              actingAs: 'self',
+              entityType: 'training_rating',
+              entityId: rating.id,
+              action: 'submit',
+              metadata: { loop: 1 },
+              label: `Feedback round 1 · ${label}`,
+            });
             const to: Status = participated ? 'attended' : 'not_attended';
-            transitions.push({ action: 'submit_rating_1', occurredAt: new Date(when.getTime() + 1), actorId: userId, actingAs: 'self', to });
+            transitions.push({
+              action: 'submit_rating_1',
+              occurredAt: new Date(when.getTime() + 1),
+              actorId: userId,
+              actingAs: 'self',
+              to,
+            });
             status = to;
             if (participated) openRating(2, userId, when, addDaysIso(localDate(when), env.RATING_LOOP2_DELAY_DAYS));
             break;
@@ -465,9 +558,19 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
               worthwhileForOrganization: worthwhile,
               comment: step.answers.comment ?? null,
             };
-            audit({ occurredAt: when, actorId: userId, actingAs: 'self', entityType: 'training_rating', entityId: rating.id, action: 'submit', metadata: { loop: 2 }, label: `Feedback round 2 · ${label}` });
+            audit({
+              occurredAt: when,
+              actorId: userId,
+              actingAs: 'self',
+              entityType: 'training_rating',
+              entityId: rating.id,
+              action: 'submit',
+              metadata: { loop: 2 },
+              label: `Feedback round 2 · ${label}`,
+            });
             const manager = org.manager(org.require(userId));
-            if (manager?.active) openRating(3, manager.id, when, addDaysIso(localDate(when), env.RATING_LOOP3_DELAY_DAYS));
+            if (manager?.active)
+              openRating(3, manager.id, when, addDaysIso(localDate(when), env.RATING_LOOP3_DELAY_DAYS));
             break;
           }
           case 'rate3': {
@@ -479,7 +582,16 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
               certificationComment: step.answers.certificationComment ?? null,
               comment: step.answers.comment ?? null,
             };
-            audit({ occurredAt: when, actorId: rating.raterId, actingAs: 'self', entityType: 'training_rating', entityId: rating.id, action: 'submit', metadata: { loop: 3 }, label: `Feedback round 3 · ${label}` });
+            audit({
+              occurredAt: when,
+              actorId: rating.raterId,
+              actingAs: 'self',
+              entityType: 'training_rating',
+              entityId: rating.id,
+              action: 'submit',
+              metadata: { loop: 3 },
+              label: `Feedback round 3 · ${label}`,
+            });
             break;
           }
         }
@@ -523,7 +635,7 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
       row.status = status;
       row.version = 1 + transitions.length + (a.goals ? 1 : 0);
       row.updatedAt = transitions.at(-1)?.occurredAt ?? created;
-      await prisma.trainingAttendee.create({ data: row as Prisma.TrainingAttendeeUncheckedCreateInput });
+      await prisma.trainingAttendee.create({ data: row });
       for (const rating of ratings.values()) {
         await prisma.trainingRating.create({
           data: {
@@ -606,52 +718,49 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
           const c = {
             ...base,
             requester: name(spec.requester),
-            nextStep: attendee.spec.auto ? 'Approved automatically. The training office books it next.' : `${approverName} decides next.`,
+            nextStep: attendee.spec.auto
+              ? 'Approved automatically. The training office books it next.'
+              : `${approverName} decides next.`,
             approver: attendee.spec.auto === 'executive_self' ? null : approverName,
             approverReason: attendee.spec.auto === 'executive_self' ? null : REASON_LABEL[attendee.spec.reason],
           };
-          return { t: participationCreatedNotification, c };
+          return render(participationCreatedNotification, c);
         }
         case 'training.participation_booked':
-          return {
-            t: participationBookedNotification,
-            c: { ...base, bookingReference: attendee.bookingReference, comment: null, documentCount: attendee.documentCount },
-          };
+          return render(participationBookedNotification, {
+            ...base,
+            bookingReference: attendee.bookingReference,
+            comment: null,
+            documentCount: attendee.documentCount,
+          });
         case 'training.participation_declined':
-          return {
-            t: participationDeclinedNotification,
-            c: { ...base, decider: attendee.decidedBy ?? approverName, reason: attendee.declineReason ?? '' },
-          };
+          return render(participationDeclinedNotification, {
+            ...base,
+            decider: attendee.decidedBy ?? approverName,
+            reason: attendee.declineReason ?? '',
+          });
         case 'training.approval_requested':
-          return {
-            t: approvalRequestedNotification,
-            c: {
-              ...base,
-              approver: approverName,
-              requester: name(spec.requester),
-              cost: formatMoney(spec.costCents),
-              escalationNote: attendee.spec.escalatedFrom
-                ? `Escalated to you because ${name(attendee.spec.escalatedFrom)} is a site manager.`
-                : null,
-              executiveNote: spec.executive ? `Executive approval by ${name(spec.executive)} follows.` : null,
-            },
-          };
+          return render(approvalRequestedNotification, {
+            ...base,
+            approver: approverName,
+            requester: name(spec.requester),
+            cost: formatMoney(spec.costCents),
+            escalationNote: attendee.spec.escalatedFrom
+              ? `Escalated to you because ${name(attendee.spec.escalatedFrom)} is a site manager.`
+              : null,
+            executiveNote: spec.executive ? `Executive approval by ${name(spec.executive)} follows.` : null,
+          });
         case 'training.executive_approval_requested':
-          return {
-            t: executiveApprovalRequestedNotification,
-            c: {
-              ...base,
-              cost: formatMoney(spec.costCents),
-              threshold: formatMoney(threshold),
-              managerDecision: `Approved by ${attendee.decidedBy ?? approverName}.`,
-            },
-          };
+          return render(executiveApprovalRequestedNotification, {
+            ...base,
+            cost: formatMoney(spec.costCents),
+            threshold: formatMoney(threshold),
+            managerDecision: `Approved by ${attendee.decidedBy ?? approverName}.`,
+          });
         default:
           throw new Error(`Unknown story notification ${n.template}`);
       }
     })();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const t = rendered.t as any;
     const createdAt = at(n.at);
     await prisma.notification.create({
       data: {
@@ -659,9 +768,9 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
         userId: uid(n.to),
         templateId: n.template,
         module: 'training',
-        title: String(t.subject(rendered.c)).slice(0, 140),
-        body: String(t.body(rendered.c)).slice(0, 500),
-        link: t.link?.(rendered.c) ?? null,
+        title: rendered.title.slice(0, 140),
+        body: rendered.body.slice(0, 500),
+        link: rendered.link,
         priority: 'normal',
         entityType: 'training_attendee',
         entityId: attendee.id,

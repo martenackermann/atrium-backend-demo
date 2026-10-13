@@ -64,7 +64,10 @@ describe('training requests', () => {
       const audit = await t.prisma.auditLog.findMany({ where: { entityId: res.body.attendees[0].id } });
       expect(audit.map((a) => a.action)).toEqual(['create']);
       const mails = await t.prisma.emailMessage.findMany({ where: { entityId: res.body.attendees[0].id } });
-      expect(mails.map((m) => m.templateId).sort()).toEqual(['training.approval_requested', 'training.participation_created']);
+      expect(mails.map((m) => m.templateId).sort()).toEqual([
+        'training.approval_requested',
+        'training.participation_created',
+      ]);
     });
 
     it('auto-approves when the requester is the resolved approver and notifies training.participation_approved (#28)', async () => {
@@ -74,11 +77,20 @@ describe('training requests', () => {
         status: 'to_book',
         managerDecision: { actingAs: 'system', autoApproval: 'requester_is_approver', by: { id: ids.max } },
       });
-      const templates = (await t.prisma.emailMessage.findMany({ where: { entityId: attendee.id } })).map((m) => m.templateId);
-      expect(templates).toEqual(
-        expect.arrayContaining(['training.participation_created', 'training.participation_approved', 'training.booking_requested']),
+      const templates = (await t.prisma.emailMessage.findMany({ where: { entityId: attendee.id } })).map(
+        (m) => m.templateId,
       );
-      const audit = await t.prisma.auditLog.findMany({ where: { entityId: attendee.id }, orderBy: { occurredAt: 'asc' } });
+      expect(templates).toEqual(
+        expect.arrayContaining([
+          'training.participation_created',
+          'training.participation_approved',
+          'training.booking_requested',
+        ]),
+      );
+      const audit = await t.prisma.auditLog.findMany({
+        where: { entityId: attendee.id },
+        orderBy: { occurredAt: 'asc' },
+      });
       expect(audit.map((a) => [a.action, a.reason])).toEqual([
         ['create', null],
         ['auto_approve', 'requester_is_approver'],
@@ -169,10 +181,7 @@ describe('training requests', () => {
           startsOn: d(-2),
           endsOn: d(-3),
           registrationUrl: 'http://insecure.example.com',
-          attendees: [
-            { userId: ids.emma, hotel: { checkInOn: d(30), checkOutOn: d(29) } },
-            { userId: ids.emma },
-          ],
+          attendees: [{ userId: ids.emma, hotel: { checkInOn: d(30), checkOutOn: d(29) } }, { userId: ids.emma }],
         }),
       ).expect(422);
       expect(Object.keys(res.body.errors).sort()).toEqual(['attendees.1.userId', 'registrationUrl']);
@@ -197,7 +206,11 @@ describe('training requests', () => {
     });
 
     it('requires an active executive from the threshold and rejects one below it (#28)', async () => {
-      const missing = await post(emma, '/training/requests', requestBody([{ userId: ids.emma }], { cost: money(500000) }));
+      const missing = await post(
+        emma,
+        '/training/requests',
+        requestBody([{ userId: ids.emma }], { cost: money(500000) }),
+      );
       expect(missing.status).toBe(422);
       expect(missing.body.errors).toHaveProperty('executiveApproverId');
       const notExec = await post(
@@ -215,7 +228,9 @@ describe('training requests', () => {
     });
 
     it('rejects unknown keys (strict bodies)', async () => {
-      const res = await post(emma, '/training/requests', { ...requestBody([{ userId: ids.emma }]), extra: 1 }).expect(422);
+      const res = await post(emma, '/training/requests', { ...requestBody([{ userId: ids.emma }]), extra: 1 }).expect(
+        422,
+      );
       expect(res.body.code).toBe('validation_failed');
     });
   });
@@ -229,7 +244,9 @@ describe('training requests', () => {
         attendees: [{ userId: attendees[0].userId }, { userId: (await attendeesOf(t, 12)).attendees[0].userId }],
       }).expect(200);
       expect(res.body.executiveStepRequired).toBe(true);
-      expect(res.body.executiveCandidates.map((u: { id: string }) => u.id).sort()).toEqual([ids.clara, ids.helen].sort());
+      expect(res.body.executiveCandidates.map((u: { id: string }) => u.id).sort()).toEqual(
+        [ids.clara, ids.helen].sort(),
+      );
       expect(res.body.executiveApprover).toMatchObject({ id: ids.clara });
       const [agent, grace] = res.body.attendees;
       expect(agent).toMatchObject({
@@ -258,7 +275,7 @@ describe('training requests', () => {
   });
 
   describe('visibility and lists', () => {
-    it('hides other people\'s requests (404) but shows them to the back office', async () => {
+    it("hides other people's requests (404) but shows them to the back office", async () => {
       const { request } = await attendeesOf(t, 1);
       await get(arne, `/training/requests/${request.id}`).expect(404);
       await get(emma, `/training/requests/${request.id}`).expect(200);
@@ -278,7 +295,9 @@ describe('training requests', () => {
       const byRef = await get(tina, '/training/requests?scope=all&q=trn-000007').expect(200);
       expect(byRef.body.data.map((r: { reference: string }) => r.reference)).toEqual(['TRN-000007']);
       await get(tina, '/training/requests?scope=all&sort=nope').expect(422);
-      const statusFilter = await get(tina, '/training/requests?scope=all&attendeeStatus=booking_impossible').expect(200);
+      const statusFilter = await get(tina, '/training/requests?scope=all&attendeeStatus=booking_impossible').expect(
+        200,
+      );
       expect(statusFilter.body.data.map((r: { reference: string }) => r.reference)).toEqual(['TRN-000016']);
     });
 
@@ -302,7 +321,11 @@ describe('training requests', () => {
         where: { entityId: created.body.id, action: 'update' },
       });
       expect(audit.changes).toEqual([
-        expect.objectContaining({ field: 'topic', from: 'Incident Communication Basics', to: 'Incident Communication Advanced' }),
+        expect.objectContaining({
+          field: 'topic',
+          from: 'Incident Communication Basics',
+          to: 'Incident Communication Advanced',
+        }),
       ]);
       await patch(emma, `/training/requests/${created.body.id}`, { topic: 'Again', version: 1 }).expect(409);
       await patch(arne, `/training/requests/${created.body.id}`, { topic: 'Nope' }).expect(404);
@@ -337,13 +360,19 @@ describe('training requests', () => {
 
     it('back-office fields: training office only; free_of_charge forces actual cost 0', async () => {
       const { request } = await attendeesOf(t, 3);
-      await patch(emma, `/training/requests/${request.id}/back-office`, { billingStatus: 'free_of_charge' }).expect(403);
+      await patch(emma, `/training/requests/${request.id}/back-office`, { billingStatus: 'free_of_charge' }).expect(
+        403,
+      );
       const res = await patch(tina, `/training/requests/${request.id}/back-office`, {
         billingStatus: 'free_of_charge',
         actualCost: money(12345),
         backOfficeComment: 'Sponsored seat',
       }).expect(200);
-      expect(res.body.backOffice).toEqual({ comment: 'Sponsored seat', billingStatus: 'free_of_charge', actualCost: money(0) });
+      expect(res.body.backOffice).toEqual({
+        comment: 'Sponsored seat',
+        billingStatus: 'free_of_charge',
+        actualCost: money(0),
+      });
       const asEmma = await get(emma, `/training/requests/${request.id}`).expect(200);
       expect(asEmma.body.backOffice).toBeNull();
       expect(asEmma.body.actualCost).toBeNull();
@@ -363,7 +392,9 @@ describe('training requests', () => {
         hotel: { checkInOn: d(19), checkOutOn: d(21), cost: money(18000) },
       });
       await post(max, `/training/requests/${created.body.id}/attendees`, { userId: ids.emma }).expect(409);
-      const outside = await post(max, `/training/requests/${created.body.id}/attendees`, { userId: ids.arne }).expect(422);
+      const outside = await post(max, `/training/requests/${created.body.id}/attendees`, { userId: ids.arne }).expect(
+        422,
+      );
       expect(Object.keys(outside.body.errors)).toEqual(['userId']);
       await post(emma, `/training/requests/${created.body.id}/attendees`, { userId: ids.emma }).expect(403);
     });

@@ -127,7 +127,12 @@ const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'O
 
 function parts(iso: IsoDate) {
   const date = new Date(`${iso}T00:00:00.000Z`);
-  return { wd: WEEKDAY[date.getUTCDay()], day: date.getUTCDate(), mon: MONTH[date.getUTCMonth()], year: date.getUTCFullYear() };
+  return {
+    wd: WEEKDAY[date.getUTCDay()],
+    day: date.getUTCDate(),
+    mon: MONTH[date.getUTCMonth()],
+    year: date.getUTCFullYear(),
+  };
 }
 
 /** "Tue 21 Oct" (+ year when it differs from `today`'s year). */

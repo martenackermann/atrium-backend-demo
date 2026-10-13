@@ -40,18 +40,25 @@ export function csvEnum<const T extends readonly [string, ...string[]]>(values: 
         .split(',')
         .map((v) => v.trim())
         .filter(Boolean);
-      const bad = items.filter((v) => !values.includes(v));
+      const isValue = (v: string): v is T[number] => values.includes(v);
+      const bad = items.filter((v) => !isValue(v));
       if (bad.length) {
-        ctx.addIssue({ code: 'custom', message: `Unknown value(s): ${bad.join(', ')}. Allowed: ${values.join(', ')}.` });
+        ctx.addIssue({
+          code: 'custom',
+          message: `Unknown value(s): ${bad.join(', ')}. Allowed: ${values.join(', ')}.`,
+        });
         return z.NEVER;
       }
-      return items as T[number][];
+      return items.filter(isValue);
     });
 }
 
 export const booleanQuery = z.enum(['true', 'false']).transform((v) => v === 'true');
 
-const moneyInput = z.strictObject({ amountCents: z.number().int().min(0).max(100_000_000), currency: z.literal('EUR') });
+const moneyInput = z.strictObject({
+  amountCents: z.number().int().min(0).max(100_000_000),
+  currency: z.literal('EUR'),
+});
 
 const httpsUrl = z
   .string()
@@ -116,7 +123,12 @@ export const updateTrainingRequestSchema = z.strictObject({
   topic: requestFields.topic.optional(),
   provider: requestFields.provider.optional(),
   format: requestFields.format.optional(),
-  location: z.string().trim().max(200).nullish().transform((v) => (v === undefined ? undefined : v || null)),
+  location: z
+    .string()
+    .trim()
+    .max(200)
+    .nullish()
+    .transform((v) => (v === undefined ? undefined : v || null)),
   registrationUrl: requestFields.registrationUrl.optional(),
   registrationDetails: z
     .string()
@@ -195,7 +207,12 @@ const optionalComment = commentSchema
   .optional();
 
 export const ACTION_BODIES = {
-  approve: z.strictObject({ comment: commentSchema.max(1000).nullish().transform((v) => (v ? v : null)) }),
+  approve: z.strictObject({
+    comment: commentSchema
+      .max(1000)
+      .nullish()
+      .transform((v) => (v ? v : null)),
+  }),
   decline: z.strictObject({ reason: reasonSchema }),
   withdraw: z.strictObject({
     reason: z
@@ -220,7 +237,13 @@ export const ACTION_BODIES = {
 
 // --- Rating submission ----------------------------------------------------------------
 
-const optionalGrade = z.number().int().min(1).max(6).nullish().transform((v) => v ?? null);
+const optionalGrade = z
+  .number()
+  .int()
+  .min(1)
+  .max(6)
+  .nullish()
+  .transform((v) => v ?? null);
 const optionalLongText = (max: number) =>
   z
     .string()
@@ -274,7 +297,11 @@ export const ratingSubmissionSchema = z
       for (const field of ['overallGrade', 'trainerGrade', 'expectationsGrade'] as const) {
         const value = body[field] ?? null;
         if (body.participated === true && value === null)
-          ctx.addIssue({ code: 'custom', path: [field], message: 'Pick a grade from 1 (excellent) to 6 (insufficient).' });
+          ctx.addIssue({
+            code: 'custom',
+            path: [field],
+            message: 'Pick a grade from 1 (excellent) to 6 (insufficient).',
+          });
         if (body.participated === false && value !== null)
           ctx.addIssue({ code: 'custom', path: [field], message: 'Leave the grades empty if you did not take part.' });
       }
@@ -320,7 +347,11 @@ export const listParticipationsQuerySchema = paginationQuerySchema.extend({
 export type ListParticipationsQuery = z.infer<typeof listParticipationsQuerySchema>;
 export class ListParticipationsQueryDto extends createZodDto(listParticipationsQuerySchema) {}
 
-export const exportParticipationsQuerySchema = listParticipationsQuerySchema.omit({ page: true, perPage: true, scope: true });
+export const exportParticipationsQuerySchema = listParticipationsQuerySchema.omit({
+  page: true,
+  perPage: true,
+  scope: true,
+});
 export class ExportParticipationsQueryDto extends createZodDto(exportParticipationsQuerySchema) {}
 
 export const listRatingsQuerySchema = paginationQuerySchema.extend({
