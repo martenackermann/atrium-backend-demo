@@ -122,6 +122,15 @@ export const assetQueueCountsSchema = z.object({
 });
 export class AssetQueueCountsDto extends createZodDto(assetQueueCountsSchema) {}
 
+/** A device waiting for acceptance: the list item plus when it was assigned ("waiting since"). */
+export const assetPendingItemSchema = assetListItemSchema
+  .extend({
+    /** `assignedAt` of the open assignment, not the asset's `updatedAt` (reminders and edits move that). */
+    assignedAt: isoDateTimeSchema,
+  })
+  .meta({ id: 'AssetPendingItem' });
+export type AssetPendingItemView = z.infer<typeof assetPendingItemSchema>;
+
 const statusCounts = z.object(
   Object.fromEntries(ASSET_STATUSES.map((s) => [s, z.number().int()])) as Record<
     (typeof ASSET_STATUSES)[number],
@@ -144,7 +153,7 @@ export const assetDashboardSchema = z
     pendingAcceptance: z.object({
       total: z.number().int(),
       overdue: z.number().int(),
-      oldest: z.array(assetListItemSchema),
+      oldest: z.array(assetPendingItemSchema),
     }),
     recentActivity: z.array(
       z.object({

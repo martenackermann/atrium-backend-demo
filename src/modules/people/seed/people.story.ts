@@ -24,6 +24,11 @@ export interface StoryComment {
   at: At;
   body: string;
   internal?: boolean;
+  /**
+   * Seeded in-app `people.comment_added` rows (SPEC §10.1). Recipients follow the notifier:
+   * requester -> assignee, manager -> requester + assignee, People Ops -> requester.
+   */
+  inApp?: { to: string; read?: boolean }[];
 }
 
 export interface StoryPersonalData {
@@ -146,7 +151,12 @@ export const PEOPLE_STORY: StoryPeopleRequest[] = [
         body: 'Contract signed. Waiting for the signed data protection form.',
         internal: true,
       },
-      { by: 'sofia', at: [-3, 14, 20], body: 'Please add him to the Hillford dispatch group as well.' },
+      {
+        by: 'sofia',
+        at: [-3, 14, 20],
+        body: 'Please add him to the Hillford dispatch group as well.',
+        inApp: [{ to: 'paula' }],
+      },
     ],
   },
   {
@@ -393,7 +403,12 @@ export const PEOPLE_STORY: StoryPeopleRequest[] = [
     ],
     comments: [
       { by: 'max', at: [-25, 9, 42], body: 'Tobias leads the depot jobs from day one.' },
-      { by: 'max', at: [-3, 8, 50], body: 'His badge does not open the Riverton depot.' },
+      {
+        by: 'max',
+        at: [-3, 8, 50],
+        body: 'His badge does not open the Riverton depot.',
+        inApp: [{ to: 'paula', read: true }],
+      },
       { by: 'paula', at: [-2, 9, 17], body: 'Facility team informed.', internal: true },
     ],
   },
@@ -487,6 +502,12 @@ export const PEOPLE_STORY: StoryPeopleRequest[] = [
     comments: [
       { by: 'victor', at: [-12, 10, 2], body: 'The move is agreed with both team leads.' },
       { by: 'paula', at: [-11, 9, 2], body: 'We update the role once IT Operations confirms.' },
+      {
+        by: 'victor',
+        at: [-1, 16, 5],
+        body: 'The security clearance for Roscoe came through today.',
+        inApp: [{ to: 'paula' }],
+      },
     ],
   },
   {

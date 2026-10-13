@@ -387,6 +387,8 @@ describe('people requests', () => {
         orderBy: { createdAt: 'desc' },
       });
       expect(JSON.stringify(waitMail.payload)).not.toContain('Laptop is not in stock yet');
+      // Sentence case: the status label is lower case inside the subject (DESIGN §10).
+      expect(waitMail.subject).toMatch(/PPL-\d{6} is now waiting \(internal\)$/);
       expect(waitMail.to).toEqual(['max.manager@example.com']);
       expect(waitMail.cc).toEqual(['sofia.site-manager@example.com']);
 

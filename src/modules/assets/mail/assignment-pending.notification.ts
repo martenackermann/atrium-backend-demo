@@ -18,17 +18,17 @@ export const assignmentPendingNotification = defineNotification({
     dueDate: z.string(),
     assetId: z.uuid(),
   }),
-  subject: (c) => `Please confirm your new ${c.deviceType}`,
+  subject: (c) => `Confirm your new ${c.deviceType}`,
   body: (c) =>
-    `${c.assignedBy} assigned ${c.model} (${c.assetTag}, serial ${c.serialNumber}) to you. Please accept or decline it by ${c.dueDate}.`,
+    `${c.assignedBy} assigned ${c.model} (${c.assetTag}, serial ${c.serialNumber}) to you. Accept or decline it by ${c.dueDate}.`,
   email: (c) => mjml`
     <mj-text font-size="18px" font-weight="600">Hello ${c.userName},</mj-text>
-    <mj-text>${c.assignedBy} assigned a new ${c.deviceType} to you. Please confirm that you received it, or decline it if something is wrong.</mj-text>
+    <mj-text>${c.assignedBy} assigned a new ${c.deviceType} to you. Accept it once you have it, or decline it if something is wrong.</mj-text>
     <mj-table>
       <tr><td style="padding:4px 12px 4px 0;color:#57524A">Model</td><td>${c.model}</td></tr>
       <tr><td style="padding:4px 12px 4px 0;color:#57524A">Asset tag</td><td>${c.assetTag}</td></tr>
       <tr><td style="padding:4px 12px 4px 0;color:#57524A">Serial number</td><td>${c.serialNumber}</td></tr>
-      <tr><td style="padding:4px 12px 4px 0;color:#57524A">Please confirm by</td><td>${c.dueDate}</td></tr>
+      <tr><td style="padding:4px 12px 4px 0;color:#57524A">Accept by</td><td>${c.dueDate}</td></tr>
     </mj-table>
     ${c.note ? raw(mjml`<mj-text color="#57524A">Note from ${c.assignedBy}: ${c.note}</mj-text>`) : ''}`,
   link: (c) => `/assets/${c.assetId}`,

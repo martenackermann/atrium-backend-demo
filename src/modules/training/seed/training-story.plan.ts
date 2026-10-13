@@ -627,19 +627,19 @@ export const TRAINING_STORY: StoryRequest[] = [
   {
     number: 22,
     story: null,
-    topic: 'IFRS Update Seminar',
+    topic: 'Duty of Care for Business Travel',
     provider: 'Summit Skills',
     format: 'online',
     location: null,
     startsOn: 19,
     endsOn: 19,
     costCents: 69000,
-    requester: 'fin1',
+    requester: 'tom',
     created: [-14, 9, 40],
-    billing: { status: 'free_of_charge', comment: 'Covered by the auditors partner programme.' },
+    billing: { status: 'free_of_charge', comment: 'Covered by the travel agency partner programme.' },
     attendees: [
       {
-        user: 'fin1',
+        user: 'tom',
         approver: 'helen',
         reason: 'direct_manager',
         steps: [
@@ -908,14 +908,14 @@ export const TRAINING_STORY: StoryRequest[] = [
     startsOn: 28,
     endsOn: 30,
     costCents: 120000,
-    requester: 'ito1',
+    requester: 'ian',
     created: [-9, 14, 10],
     attendees: [
       {
-        user: 'ito1',
+        user: 'ian',
         approver: 'victor',
         reason: 'direct_manager',
-        steps: [{ kind: 'withdraw', at: [-7, 8, 40], by: 'ito1', reason: 'Found an internal course instead.' }],
+        steps: [{ kind: 'withdraw', at: [-7, 8, 40], by: 'ian', reason: 'Found an internal course instead.' }],
       },
     ],
   },
@@ -1029,6 +1029,33 @@ export const TRAINING_STORY_NOTIFICATIONS: {
     template: 'training.participation_booked',
     to: 'helen',
     at: [-13, 15, 0],
+    read: true,
+  },
+  // Back-office personas as requester or attendee (SPEC §10.1: 3-6 notifications per persona).
+  // Tina registered both Service Desk agents for S-T8: the requester gets the cc.
+  {
+    request: 8,
+    attendee: 'sdkAgent5',
+    template: 'training.participation_created',
+    to: 'tina',
+    at: [-3, 11, 0],
+    read: false,
+  },
+  { request: 22, attendee: 'tom', template: 'training.participation_booked', to: 'tom', at: [-11, 15, 45], read: true },
+  {
+    request: 30,
+    attendee: 'ian',
+    template: 'training.participation_created',
+    to: 'ian',
+    at: [-9, 14, 10],
+    read: true,
+  },
+  {
+    request: 30,
+    attendee: 'ian',
+    template: 'training.participation_withdrawn',
+    to: 'ian',
+    at: [-7, 8, 40],
     read: true,
   },
 ];

@@ -191,7 +191,8 @@ describe('assets: lifecycle and permissions', () => {
         where: { userId: emmaId, templateId: 'assets.assignment_pending', entityId: phone },
         orderBy: { createdAt: 'desc' },
       });
-      expect(note.title).toBe('Please confirm your new smartphone');
+      expect(note.title).toBe('Confirm your new smartphone');
+      expect(note.body).toMatch(/to you\. Accept or decline it by \d{4}-\d{2}-\d{2}\.$/);
       expect(note.link).toBe(`/assets/${phone}`);
       await act(arne, phone, 'assign', { userId: emmaId }).expect(409);
     });
@@ -213,11 +214,11 @@ describe('assets: lifecycle and permissions', () => {
       expect(res.body.errors).toHaveProperty('condition');
       res = await act(arne, monitor, 'return', { condition: 'ok' }).expect(200);
       expect(res.body).toMatchObject({ status: 'in_stock', assignedUser: null, costCenter: { code: 'CC-4900' } });
-      expect(
-        await t.prisma.notification.count({
-          where: { userId: emmaId, templateId: 'assets.returned', entityId: monitor },
-        }),
-      ).toBe(1);
+      const returned = await t.prisma.notification.findMany({
+        where: { userId: emmaId, templateId: 'assets.returned', entityId: monitor },
+      });
+      expect(returned).toHaveLength(1);
+      expect(returned[0].body).toMatch(/^IT support has Skylark View 27 \(AST-00064\) back in good condition\./);
 
       const headset = await idOf(71);
       res = await act(arne, headset, 'return', { condition: 'damaged', note: 'Cable cut' }).expect(200);
