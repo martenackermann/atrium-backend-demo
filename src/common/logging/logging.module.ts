@@ -4,6 +4,11 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { AppConfig } from '@/config/app-config';
 
+/** Signed download tokens in `/files/<token>` URLs are bearer credentials: keep them out of logs. */
+export function redactLoggedUrl(url: string | undefined): string | undefined {
+  return url?.replace(/\/files\/[^/?#]+/, '/files/[redacted]');
+}
+
 /** Structured JSON logging (pino) with the request id on every line; pretty output in development. */
 @Module({
   imports: [
@@ -17,6 +22,9 @@ import { AppConfig } from '@/config/app-config';
             // requestIdMiddleware (configureApp) runs first and sets req.id.
             genReqId: (req: IncomingMessage & { id?: unknown }) => (typeof req.id === 'string' ? req.id : randomUUID()),
             customProps: () => ({ app: 'atrium-api' }),
+            serializers: {
+              req: (req: { url?: string }) => ({ ...req, url: redactLoggedUrl(req.url) }),
+            },
             redact: {
               paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
               censor: '[redacted]',
