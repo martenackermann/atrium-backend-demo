@@ -20,7 +20,7 @@ describe('integrated my-day and inbox (all modules seeded)', () => {
   });
 
   const get = (persona: string, path: string) =>
-    t.http().get(`/api/v1${path}`).set('Authorization', tokens[persona]!).expect(200);
+    t.http().get(`/api/v1${path}`).set('Authorization', tokens[persona]).expect(200);
   /** `/me/inbox` and `/search` answer `{ data: [...] }`. */
   const list = async (persona: string, path: string) => (await get(persona, path)).body.data;
   const types = (items: { type: string }[]) => items.map((i) => i.type).sort();
