@@ -1,0 +1,189 @@
+// =============================================================================
+// Assets module (slice A3): IT assets, the asset catalogue (device types,
+// manufacturers, platforms, models) and the assignment/acceptance history.
+// SPEC §4.4, §5.3; back-relations on core models live in the A3 block of core.prisma.
+// =============================================================================
+
+/// SPEC §5.3 asset lifecycle.
+enum AssetStatus {
+  in_stock
+  pending_acceptance
+  in_use
+  in_repair
+  scrapped
+
+  @@map("asset_status")
+}
+
+/// Condition recorded on `return` (ok -> in stock, damaged -> in repair).
+enum AssetReturnCondition {
+  ok
+  damaged
+
+  @@map("asset_return_condition")
+}
+
+model DeviceType {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  /// laptop, desktop, monitor, smartphone, tablet, headset, dock
+  code             String   @unique
+  name             String
+  /// The assigned user picks the installed platform on accept.
+  requiresPlatform Boolean  @default(false) @map("requires_platform")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  models        AssetModel[]
+  manufacturers ManufacturerDeviceType[]
+  platforms     PlatformDeviceType[]
+
+  @@map("device_types")
+}
+
+model Manufacturer {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  name       String    @unique
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  deviceTypes ManufacturerDeviceType[]
+  models      AssetModel[]
+
+  @@map("manufacturers")
+}
+
+/// Which device types a manufacturer makes (a model's type must be one of them).
+model ManufacturerDeviceType {
+  manufacturerId String @map("manufacturer_id") @db.Uuid
+  deviceTypeId   String @map("device_type_id") @db.Uuid
+
+  manufacturer Manufacturer @relation(fields: [manufacturerId], references: [id], onDelete: Cascade)
+  deviceType   DeviceType   @relation(fields: [deviceTypeId], references: [id], onDelete: Cascade)
+
+  @@id([manufacturerId, deviceTypeId])
+  @@index([deviceTypeId])
+  @@map("manufacturer_device_types")
+}
+
+/// Operating system / platform installed on a device (chosen by the user on accept).
+model Platform {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  name       String    @unique
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  deviceTypes PlatformDeviceType[]
+  assets      Asset[]
+
+  @@map("platforms")
+}
+
+model PlatformDeviceType {
+  platformId   String @map("platform_id") @db.Uuid
+  deviceTypeId String @map("device_type_id") @db.Uuid
+
+  platform   Platform   @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  deviceType DeviceType @relation(fields: [deviceTypeId], references: [id], onDelete: Cascade)
+
+  @@id([platformId, deviceTypeId])
+  @@index([deviceTypeId])
+  @@map("platform_device_types")
+}
+
+model AssetModel {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  /// Full display name, e.g. "Marlowe X5 128 GB Midnight" for phones and tablets.
+  name           String
+  manufacturerId String    @map("manufacturer_id") @db.Uuid
+  deviceTypeId   String    @map("device_type_id") @db.Uuid
+  storageGb      Int?      @map("storage_gb")
+  color          String?
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdById    String?   @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  manufacturer Manufacturer @relation(fields: [manufacturerId], references: [id])
+  deviceType   DeviceType   @relation(fields: [deviceTypeId], references: [id])
+  createdBy    User?        @relation("AssetModelCreatedBy", fields: [createdById], references: [id])
+  assets       Asset[]
+
+  @@unique([manufacturerId, name])
+  @@index([deviceTypeId])
+  @@map("asset_models")
+}
+
+model Asset {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  /// Human reference `AST-00001` (API `assetTag`), computed from this number.
+  number         Int         @unique @default(autoincrement())
+  /// Unique, compared case-insensitively by the service (409 serial_taken).
+  serialNumber   String      @unique @map("serial_number")
+  /// Device or host name.
+  name           String?
+  modelId        String      @map("model_id") @db.Uuid
+  platformId     String?     @map("platform_id") @db.Uuid
+  status         AssetStatus @default(in_stock)
+  assignedUserId String?     @map("assigned_user_id") @db.Uuid
+  costCenterId   String      @map("cost_center_id") @db.Uuid
+  purchaseDate   DateTime?   @map("purchase_date") @db.Date
+  mdmEnrolled    Boolean     @default(false) @map("mdm_enrolled")
+  /// <= 2000 characters; admin only (never returned to the assigned user).
+  notes          String?
+  createdById    String?     @map("created_by_id") @db.Uuid
+  updatedById    String?     @map("updated_by_id") @db.Uuid
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(3)
+  deletedById    String?     @map("deleted_by_id") @db.Uuid
+  version        Int         @default(1)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  model        AssetModel        @relation(fields: [modelId], references: [id])
+  platform     Platform?         @relation(fields: [platformId], references: [id])
+  assignedUser User?             @relation("AssetAssignedUser", fields: [assignedUserId], references: [id])
+  costCenter   CostCenter        @relation("AssetCostCenter", fields: [costCenterId], references: [id])
+  createdBy    User?             @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedBy    User?             @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+  deletedBy    User?             @relation("AssetDeletedBy", fields: [deletedById], references: [id])
+  assignments  AssetAssignment[]
+
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([modelId])
+  @@index([costCenterId])
+  @@map("assets")
+}
+
+/// Possession history. At most one *open* assignment per asset (no declined, unassigned or
+/// returned timestamp): enforced by the service under a row lock and by a partial unique
+/// index in the migration.
+model AssetAssignment {
+  id              String                @id @default(uuid(7)) @db.Uuid
+  assetId         String                @map("asset_id") @db.Uuid
+  userId          String                @map("user_id") @db.Uuid
+  assignedById    String                @map("assigned_by_id") @db.Uuid
+  assignedAt      DateTime              @map("assigned_at") @db.Timestamptz(3)
+  note            String?
+  acceptedAt      DateTime?             @map("accepted_at") @db.Timestamptz(3)
+  declinedAt      DateTime?             @map("declined_at") @db.Timestamptz(3)
+  declineReason   String?               @map("decline_reason")
+  unassignedAt    DateTime?             @map("unassigned_at") @db.Timestamptz(3)
+  returnedAt      DateTime?             @map("returned_at") @db.Timestamptz(3)
+  returnCondition AssetReturnCondition? @map("return_condition")
+  returnNote      String?               @map("return_note")
+  lastRemindedAt  DateTime?             @map("last_reminded_at") @db.Timestamptz(3)
+  reminderCount   Int                   @default(0) @map("reminder_count")
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  asset      Asset @relation(fields: [assetId], references: [id])
+  user       User  @relation("AssetAssignmentUser", fields: [userId], references: [id])
+  assignedBy User  @relation("AssetAssignmentAssignedBy", fields: [assignedById], references: [id])
+
+  @@index([assetId, assignedAt])
+  @@index([userId])
+  @@map("asset_assignments")
+}
