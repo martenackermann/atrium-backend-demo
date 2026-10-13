@@ -104,6 +104,11 @@ export class TravelWorkflow {
         return this.access.canView(await this.access.viewer(actor, tx), row) ? row : null;
       },
       persist: (tx, row, next, change) => this.persist(tx, row, next.value as TravelRow['status'], change),
+      // Timeline: "Max Manager approved (as deputy for Priya Raman)".
+      auditMetadata: ({ entity, actingAs }) => {
+        const approver = (entity as TravelRow).approver; // `load` includes travelDetailInclude
+        return actingAs === 'deputy' && approver ? { onBehalfOfName: approver.displayName } : null;
+      },
       afterTransition: ({ tx, entity, change, notifies }) =>
         this.notifier.afterTransition(tx, entity as TravelRow, change, notifies),
     });

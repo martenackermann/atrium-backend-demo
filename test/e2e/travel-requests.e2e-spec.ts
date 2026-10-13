@@ -554,10 +554,11 @@ describe('travel requests', () => {
 
     it('deputy approval (Max for Priya) and manager-chain override (Clara above Max)', async () => {
       const sv11 = await requestId(11);
-      await act('max', sv11, 'approve').expect(200);
-      expect(
-        (await t.prisma.auditLog.findFirstOrThrow({ where: { entityId: sv11, action: 'approve' } })).actingAs,
-      ).toBe('deputy');
+      await act('max', sv11, 'approve', { comment: 'Fine for Priya' }).expect(200);
+      expect(await t.prisma.auditLog.findFirstOrThrow({ where: { entityId: sv11, action: 'approve' } })).toMatchObject({
+        actingAs: 'deputy',
+        metadata: expect.objectContaining({ onBehalfOfName: 'Priya Raman', comment: 'Fine for Priya' }),
+      });
       const sv9 = await requestId(9);
       const res = await act('clara', sv9, 'approve').expect(200);
       expect(res.body.approval.actingAs).toBe('manager_chain');

@@ -113,7 +113,8 @@ export function auditSummary(entry: {
   /** Phrase from the AuditLabelRegistry, if any. */
   verb?: string;
 }): string {
-  const actor = entry.actorName ?? 'System';
+  // DESIGN §9 AuditTrail: system actions are attributed to "Atrium".
+  const actor = entry.actorName ?? 'Atrium';
   const verb =
     entry.verb ?? VERBS[entry.action] ?? `${entry.action.replace(/_/g, ' ')}${entry.action.endsWith('e') ? 'd' : 'ed'}`;
   const onBehalf = typeof entry.metadata?.onBehalfOfName === 'string' ? entry.metadata.onBehalfOfName : null;
