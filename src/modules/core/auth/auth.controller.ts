@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodResponse } from 'nestjs-zod';
 import type { AuthUser } from '@/common/auth/auth-user';
 import { CurrentUser } from '@/common/auth/current-user.decorator';
 import { Public } from '@/common/auth/public.decorator';
 import { ApiProblemResponses } from '@/common/http/api-problem-response.decorator';
+import { DEMO_LOGIN_LIMIT_FACTOR, LoginRateLimit } from '@/common/throttle/auth-rate-limit.guard';
 import { DemoLoginDto, LoginDto, LoginResponseDto, PersonaDto } from './auth.dto';
 import { AuthService } from './auth.service';
+import { DemoModeGuard } from './demo-mode.guard';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -14,6 +16,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  @LoginRateLimit()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Email + password login; returns a bearer token' })
@@ -24,6 +27,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(DemoModeGuard)
+  @LoginRateLimit({ factor: DEMO_LOGIN_LIMIT_FACTOR })
   @Post('demo-login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'One-click persona login (only when DEMO_MODE=true)' })
@@ -34,6 +39,7 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(DemoModeGuard)
   @Get('personas')
   @ApiOperation({ summary: 'Demo personas for the login screen (only when DEMO_MODE=true)' })
   @ZodResponse({ type: [PersonaDto] })

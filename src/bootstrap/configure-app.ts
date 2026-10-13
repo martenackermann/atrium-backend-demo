@@ -15,8 +15,8 @@ export function configureApp(app: NestExpressApplication, options: { swagger?: b
 
   app.use(requestIdMiddleware);
   app.setGlobalPrefix(API_PREFIX);
-  // Behind a reverse proxy / docker network: use X-Forwarded-For for client IPs (rate limits).
-  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+  // Client IPs (login rate limit) come from X-Forwarded-For only when a trusted proxy sets it.
+  app.set('trust proxy', config.get('TRUST_PROXY'));
   app.use(helmet());
   // Bearer tokens only (no cookies), explicit origins only.
   app.enableCors({
