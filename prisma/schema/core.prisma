@@ -143,6 +143,14 @@ model User {
   // >>> A1 relations
   // <<< A1
   // >>> A2 relations
+  travelRequestsAsTraveller TravelRequest[]        @relation("TravelRequestTraveller")
+  travelRequestsRequested   TravelRequest[]        @relation("TravelRequestRequester")
+  travelRequestsToApprove   TravelRequest[]        @relation("TravelRequestApprover")
+  travelRequestsEscalated   TravelRequest[]        @relation("TravelRequestEscalatedFrom")
+  travelRequestsApproved    TravelRequest[]        @relation("TravelRequestApprovedBy")
+  travelRequestsDeclined    TravelRequest[]        @relation("TravelRequestDeclinedBy")
+  travelTrainCompanionships TravelTrainCompanion[] @relation("TravelTrainCompanionUser")
+  travelBookingsBooked      TravelBooking[]        @relation("TravelBookingBookedBy")
   // <<< A2
   // >>> A3 relations
   // <<< A3
@@ -227,6 +235,7 @@ model CostCenter {
   // >>> A1 relations
   // <<< A1
   // >>> A2 relations
+  travelRequests TravelRequest[] @relation("TravelRequestCostCenter")
   // <<< A2
   // >>> A3 relations
   // <<< A3
