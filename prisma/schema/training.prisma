@@ -1,0 +1,193 @@
+// =============================================================================
+// Training module (slice A1): training requests, attendees (participations) with
+// their approval / booking / cancellation lifecycle (SPEC §5.1), and rating loops 1-3
+// (single `training_ratings` table holding the task and the answers, SPEC §4.2).
+// =============================================================================
+
+enum TrainingFormat {
+  in_person
+  online
+  hybrid
+
+  @@map("training_format")
+}
+
+/// SPEC §5.1 attendee lifecycle.
+enum TrainingAttendeeStatus {
+  pending_manager_approval
+  pending_executive_approval
+  to_book
+  booked
+  declined
+  booking_impossible
+  cancellation_requested
+  cancelled
+  attended
+  not_attended
+
+  @@map("training_attendee_status")
+}
+
+enum TrainingBillingStatus {
+  open
+  invoice_received
+  free_of_charge
+
+  @@map("training_billing_status")
+}
+
+/// Rating loop 2 statements: A = fully agree ... D = disagree.
+enum TrainingLikert {
+  A
+  B
+  C
+  D
+
+  @@map("training_likert")
+}
+
+/// TRN-000123 (reference = prefix + zero-padded number, computed).
+model TrainingRequest {
+  id                     String                @id @default(uuid(7)) @db.Uuid
+  number                 Int                   @unique @default(autoincrement())
+  topic                  String
+  provider               String
+  format                 TrainingFormat
+  location               String?
+  registrationUrl        String?               @map("registration_url")
+  registrationDetails    String?               @map("registration_details")
+  startsOn               DateTime              @map("starts_on") @db.Date
+  endsOn                 DateTime              @map("ends_on") @db.Date
+  /// Course fee per attendee (EUR cents).
+  costCents              Int                   @map("cost_cents")
+  currency               String                @default("EUR")
+  costCenterId           String                @map("cost_center_id") @db.Uuid
+  /// Required (active executive) when costCents >= TRAINING_EXECUTIVE_THRESHOLD_CENTS.
+  executiveApproverId    String?               @map("executive_approver_id") @db.Uuid
+  certificateExpected    Boolean               @default(false) @map("certificate_expected")
+  reimbursementAgreement Boolean               @default(false) @map("reimbursement_agreement")
+  requesterComment       String?               @map("requester_comment")
+  requesterId            String                @map("requester_id") @db.Uuid
+  /// Back office only.
+  backOfficeComment      String?               @map("back_office_comment")
+  billingStatus          TrainingBillingStatus @default(open) @map("billing_status")
+  actualCostCents        Int?                  @map("actual_cost_cents")
+  version                Int                   @default(1)
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  costCenter        CostCenter         @relation("TrainingRequestCostCenter", fields: [costCenterId], references: [id])
+  executiveApprover User?              @relation("TrainingRequestExecutiveApprover", fields: [executiveApproverId], references: [id])
+  requester         User               @relation("TrainingRequestRequester", fields: [requesterId], references: [id])
+  attendees         TrainingAttendee[]
+
+  @@index([requesterId])
+  @@index([startsOn])
+  @@index([billingStatus])
+  @@map("training_requests")
+}
+
+/// One attendee of a request ("participation") with its own approval lifecycle.
+model TrainingAttendee {
+  id                       String                  @id @default(uuid(7)) @db.Uuid
+  requestId                String                  @map("request_id") @db.Uuid
+  userId                   String                  @map("user_id") @db.Uuid
+  costCenterId             String                  @map("cost_center_id") @db.Uuid
+  status                   TrainingAttendeeStatus
+  /// Restored by reject_cancellation.
+  statusBeforeCancellation TrainingAttendeeStatus? @map("status_before_cancellation")
+  /// Manager-step approver (SPEC §6.1), frozen at creation.
+  approverId               String?                 @map("approver_id") @db.Uuid
+  approverReason           ApproverReason          @map("approver_reason")
+  /// First site manager skipped by the resolution (SPEC_RESOLUTIONS #2).
+  escalatedFromId          String?                 @map("escalated_from_id") @db.Uuid
+  /// Copied from the request when the executive step is required.
+  executiveApproverId      String?                 @map("executive_approver_id") @db.Uuid
+  hotelNeeded              Boolean                 @default(false) @map("hotel_needed")
+  hotelCheckInOn           DateTime?               @map("hotel_check_in_on") @db.Date
+  hotelCheckOutOn          DateTime?               @map("hotel_check_out_on") @db.Date
+  hotelCostCents           Int?                    @map("hotel_cost_cents")
+  goal1                    String?
+  goal2                    String?
+  goalsUpdatedAt           DateTime?               @map("goals_updated_at") @db.Timestamptz(3)
+  goalsRemindedAt          DateTime?               @map("goals_reminded_at") @db.Timestamptz(3)
+  bookingReference         String?                 @map("booking_reference")
+  managerDecisionAt        DateTime?               @map("manager_decision_at") @db.Timestamptz(3)
+  managerDecisionById      String?                 @map("manager_decision_by_id") @db.Uuid
+  managerDecisionAs        ActingAs?               @map("manager_decision_as")
+  managerDecisionComment   String?                 @map("manager_decision_comment")
+  managerAutoApproval      AutoApproval?           @map("manager_auto_approval")
+  executiveDecisionAt      DateTime?               @map("executive_decision_at") @db.Timestamptz(3)
+  executiveDecisionById    String?                 @map("executive_decision_by_id") @db.Uuid
+  executiveDecisionAs      ActingAs?               @map("executive_decision_as")
+  executiveDecisionComment String?                 @map("executive_decision_comment")
+  executiveAutoApproval    AutoApproval?           @map("executive_auto_approval")
+  declineReason            String?                 @map("decline_reason")
+  bookingImpossibleReason  String?                 @map("booking_impossible_reason")
+  cancellationReason       String?                 @map("cancellation_reason")
+  bookedAt                 DateTime?               @map("booked_at") @db.Timestamptz(3)
+  bookedById               String?                 @map("booked_by_id") @db.Uuid
+  cancellationRequestedAt  DateTime?               @map("cancellation_requested_at") @db.Timestamptz(3)
+  cancelledAt              DateTime?               @map("cancelled_at") @db.Timestamptz(3)
+  version                  Int                     @default(1)
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  request             TrainingRequest  @relation(fields: [requestId], references: [id])
+  user                User             @relation("TrainingAttendeeUser", fields: [userId], references: [id])
+  costCenter          CostCenter       @relation("TrainingAttendeeCostCenter", fields: [costCenterId], references: [id])
+  approver            User?            @relation("TrainingAttendeeApprover", fields: [approverId], references: [id])
+  escalatedFrom       User?            @relation("TrainingAttendeeEscalatedFrom", fields: [escalatedFromId], references: [id])
+  executiveApprover   User?            @relation("TrainingAttendeeExecutiveApprover", fields: [executiveApproverId], references: [id])
+  managerDecisionBy   User?            @relation("TrainingAttendeeManagerDecisionBy", fields: [managerDecisionById], references: [id])
+  executiveDecisionBy User?            @relation("TrainingAttendeeExecutiveDecisionBy", fields: [executiveDecisionById], references: [id])
+  bookedBy            User?            @relation("TrainingAttendeeBookedBy", fields: [bookedById], references: [id])
+  ratings             TrainingRating[]
+
+  @@unique([requestId, userId])
+  @@index([userId, status])
+  @@index([approverId, status])
+  @@index([executiveApproverId, status])
+  @@index([status])
+  @@map("training_attendees")
+}
+
+/// Rating loop 1-3 task + answers. Unique (attendeeId, loop). State is derived:
+/// upcoming (dueAt > now), due, overdue (now > dueAt + RATING_OVERDUE_DAYS), submitted.
+model TrainingRating {
+  id                        String          @id @default(uuid(7)) @db.Uuid
+  attendeeId                String          @map("attendee_id") @db.Uuid
+  /// 1, 2 or 3
+  loop                      Int
+  /// Loops 1-2: the attendee. Loop 3: the attendee's direct manager when the row was created.
+  raterId                   String          @map("rater_id") @db.Uuid
+  dueAt                     DateTime        @map("due_at") @db.Timestamptz(3)
+  submittedAt               DateTime?       @map("submitted_at") @db.Timestamptz(3)
+  lastRemindedAt            DateTime?       @map("last_reminded_at") @db.Timestamptz(3)
+  reminderCount             Int             @default(0) @map("reminder_count")
+  // loop 1
+  participated              Boolean?
+  overallGrade              Int?            @map("overall_grade")
+  trainerGrade              Int?            @map("trainer_grade")
+  expectationsGrade         Int?            @map("expectations_grade")
+  // loop 2
+  appliesLearned            TrainingLikert? @map("applies_learned")
+  supervisorSupported       TrainingLikert? @map("supervisor_supported")
+  worthwhileForOrganization TrainingLikert? @map("worthwhile_for_organization")
+  // loop 3
+  improvementObserved       Int?            @map("improvement_observed")
+  certificationGained       Boolean?        @map("certification_gained")
+  certificationComment      String?         @map("certification_comment")
+  // all loops
+  comment                   String?
+  createdAt                 DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  attendee TrainingAttendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  rater    User             @relation("TrainingRatingRater", fields: [raterId], references: [id])
+
+  @@unique([attendeeId, loop])
+  @@index([raterId, submittedAt])
+  @@index([dueAt])
+  @@map("training_ratings")
+}

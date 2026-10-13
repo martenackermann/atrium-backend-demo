@@ -141,6 +141,16 @@ model User {
   jobRunsTriggered    JobRun[]
 
   // >>> A1 relations
+  trainingRequestsRequested          TrainingRequest[]  @relation("TrainingRequestRequester")
+  trainingRequestsExecutiveApprover  TrainingRequest[]  @relation("TrainingRequestExecutiveApprover")
+  trainingAttendances                TrainingAttendee[] @relation("TrainingAttendeeUser")
+  trainingAttendeesApprover          TrainingAttendee[] @relation("TrainingAttendeeApprover")
+  trainingAttendeesEscalated         TrainingAttendee[] @relation("TrainingAttendeeEscalatedFrom")
+  trainingAttendeesExecutiveApprover TrainingAttendee[] @relation("TrainingAttendeeExecutiveApprover")
+  trainingAttendeesManagerDecided    TrainingAttendee[] @relation("TrainingAttendeeManagerDecisionBy")
+  trainingAttendeesExecutiveDecided  TrainingAttendee[] @relation("TrainingAttendeeExecutiveDecisionBy")
+  trainingAttendeesBooked            TrainingAttendee[] @relation("TrainingAttendeeBookedBy")
+  trainingRatingsToGive              TrainingRating[]   @relation("TrainingRatingRater")
   // <<< A1
   // >>> A2 relations
   // <<< A2
@@ -225,6 +235,8 @@ model CostCenter {
   users      User[]
 
   // >>> A1 relations
+  trainingRequests  TrainingRequest[]  @relation("TrainingRequestCostCenter")
+  trainingAttendees TrainingAttendee[] @relation("TrainingAttendeeCostCenter")
   // <<< A1
   // >>> A2 relations
   // <<< A2
