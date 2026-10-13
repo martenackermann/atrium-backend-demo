@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
+import { HomeController } from './controllers/home.controller';
+import { HomeService } from './services/home.service';
 
-/** Home module shell - filled in phase 2b/3 (see README.md). */
-@Module({})
+/** Slice A4 - Home "My day" (no tables; consumes the core provider framework). */
+@Module({
+  controllers: [HomeController],
+  providers: [HomeService],
+})
 export class HomeModule {}

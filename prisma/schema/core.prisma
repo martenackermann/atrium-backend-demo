@@ -147,6 +147,15 @@ model User {
   // >>> A3 relations
   // <<< A3
   // >>> A4 relations
+  peopleRequestsRequested PeopleRequest[]        @relation("PeopleRequestRequester")
+  peopleRequestsAsSubject PeopleRequest[]        @relation("PeopleRequestSubject")
+  peopleRequestsAsManager PeopleRequest[]        @relation("PeopleRequestManager")
+  peopleRequestsAsDeputy  PeopleRequest[]        @relation("PeopleRequestManagerDeputy")
+  peopleRequestsAssigned  PeopleRequest[]        @relation("PeopleRequestAssignee")
+  peopleRequestComments   PeopleRequestComment[] @relation("PeopleRequestCommentAuthor")
+  newsPostsAuthored       NewsPost[]             @relation("NewsPostAuthor")
+  newsPostsUpdated        NewsPost[]             @relation("NewsPostUpdatedBy")
+  usefulLinksCreated      UsefulLink[]           @relation("UsefulLinkCreatedBy")
   // <<< A4
 
   @@index([managerId])
@@ -186,6 +195,7 @@ model Department {
   // >>> A3 relations
   // <<< A3
   // >>> A4 relations
+  peopleRequests PeopleRequest[] @relation("PeopleRequestDepartment")
   // <<< A4
 
   @@map("departments")
@@ -207,6 +217,7 @@ model Site {
   // >>> A3 relations
   // <<< A3
   // >>> A4 relations
+  peopleRequests PeopleRequest[] @relation("PeopleRequestSite")
   // <<< A4
 
   @@map("sites")
@@ -333,6 +344,7 @@ model Attachment {
   // >>> A3 relations
   // <<< A3
   // >>> A4 relations
+  newsPostsCover NewsPost[] @relation("NewsPostCover")
   // <<< A4
 
   @@index([entityType, entityId])

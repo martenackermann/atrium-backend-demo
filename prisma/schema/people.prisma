@@ -1,0 +1,148 @@
+// =============================================================================
+// People module (slice A4): onboarding / offboarding / role-or-access-change
+// requests, their comments and the job-role catalogue (SPEC §4.5, §5.4).
+// =============================================================================
+
+enum PeopleRequestType {
+  onboarding
+  offboarding
+  role_change
+
+  @@map("people_request_type")
+}
+
+/// SPEC §5.4. completed, rejected and cancelled are "closed".
+enum PeopleRequestStatus {
+  open
+  in_progress
+  waiting_internal
+  waiting_on_requester
+  reopened
+  completed
+  rejected
+  cancelled
+
+  @@map("people_request_status")
+}
+
+/// Declaration order = sort order (critical first).
+enum PeoplePriority {
+  critical
+  high
+  normal
+  low
+
+  @@map("people_priority")
+}
+
+enum PeopleSalutation {
+  mr
+  ms
+  mx
+
+  @@map("people_salutation")
+}
+
+/// SPEC_RESOLUTIONS #19.
+enum PeopleCommentKind {
+  comment
+  question
+  status_note
+
+  @@map("people_comment_kind")
+}
+
+model JobRole {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String   @unique
+  category  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  requests PeopleRequest[]
+
+  @@map("job_roles")
+}
+
+model PeopleRequest {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  /// Reference PPL-000012 (computed, not stored).
+  number             Int                 @unique @default(autoincrement())
+  type               PeopleRequestType
+  title              String
+  priority           PeoplePriority      @default(normal)
+  status             PeopleRequestStatus @default(open)
+  jobRoleId          String?             @map("job_role_id") @db.Uuid
+  subjectUserId      String?             @map("subject_user_id") @db.Uuid
+  salutation         PeopleSalutation?
+  firstName          String              @map("first_name")
+  lastName           String              @map("last_name")
+  /// Start date, last working day or change date.
+  effectiveDate      DateTime            @map("effective_date") @db.Date
+  departmentId       String?             @map("department_id") @db.Uuid
+  siteId             String?             @map("site_id") @db.Uuid
+  /// The subject's (future) manager; gets visibility and personal-data access.
+  managerId          String?             @map("manager_id") @db.Uuid
+  /// Read-only visibility, no personal data.
+  managerDeputyId    String?             @map("manager_deputy_id") @db.Uuid
+  requesterId        String              @map("requester_id") @db.Uuid
+  assigneeId         String?             @map("assignee_id") @db.Uuid
+  reason             String?
+  furtherInformation String?             @map("further_information")
+  equipmentNotes     String?             @map("equipment_notes")
+  /// Personal data (requester, manager, people_ops only).
+  birthDate          DateTime?           @map("birth_date") @db.Date
+  placeOfBirth       String?             @map("place_of_birth")
+  nationality        String?             @db.Char(2)
+  /// Private address (personal data) as flat columns (SPEC_RESOLUTIONS #1).
+  privateStreet      String?             @map("private_street")
+  privateHouseNumber String?             @map("private_house_number")
+  privatePostalCode  String?             @map("private_postal_code")
+  privateCity        String?             @map("private_city")
+  privateCountryCode String?             @map("private_country_code") @db.Char(2)
+  privatePhone       String?             @map("private_phone")
+  privateEmail       String?             @map("private_email")
+  /// people_ops / it_admin only.
+  internalNote       String?             @map("internal_note")
+  /// Last reject, cancel or reopen reason.
+  statusReason       String?             @map("status_reason")
+  closedAt           DateTime?           @map("closed_at") @db.Timestamptz(3)
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  jobRole       JobRole?               @relation(fields: [jobRoleId], references: [id])
+  subjectUser   User?                  @relation("PeopleRequestSubject", fields: [subjectUserId], references: [id])
+  department    Department?            @relation("PeopleRequestDepartment", fields: [departmentId], references: [id])
+  site          Site?                  @relation("PeopleRequestSite", fields: [siteId], references: [id])
+  manager       User?                  @relation("PeopleRequestManager", fields: [managerId], references: [id])
+  managerDeputy User?                  @relation("PeopleRequestManagerDeputy", fields: [managerDeputyId], references: [id])
+  requester     User                   @relation("PeopleRequestRequester", fields: [requesterId], references: [id])
+  assignee      User?                  @relation("PeopleRequestAssignee", fields: [assigneeId], references: [id])
+  comments      PeopleRequestComment[]
+
+  @@index([requesterId])
+  @@index([managerId])
+  @@index([status, priority])
+  @@index([assigneeId])
+  @@map("people_requests")
+}
+
+model PeopleRequestComment {
+  id        String            @id @default(uuid(7)) @db.Uuid
+  requestId String            @map("request_id") @db.Uuid
+  authorId  String            @map("author_id") @db.Uuid
+  /// 1-4000 characters, plain text.
+  body      String
+  /// Internal comments are visible to people_ops / it_admin only.
+  internal  Boolean           @default(false)
+  kind      PeopleCommentKind @default(comment)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  request PeopleRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author  User          @relation("PeopleRequestCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([requestId, createdAt])
+  @@map("people_request_comments")
+}
