@@ -22,7 +22,7 @@ export const acceptanceReminderNotification = defineNotification({
     `${c.model} (${c.assetTag}) was assigned to you on ${c.assignedOn} and is still waiting for your confirmation. Reminder ${c.reminder} of ${c.reminderMax}.`,
   email: (c) => mjml`
     <mj-text font-size="18px" font-weight="600">Hello ${c.userName},</mj-text>
-    <mj-text>The ${c.deviceType} ${c.model} (${c.assetTag}) was assigned to you on ${c.assignedOn}. Please accept it in Atrium, or decline it if you did not receive it.</mj-text>
+    <mj-text>The ${c.deviceType} ${c.model} (${c.assetTag}) was assigned to you on ${c.assignedOn}. Accept it in Atrium, or decline it if you did not receive it.</mj-text>
     <mj-text color="#6F695E">Reminder ${c.reminder} of ${c.reminderMax}.</mj-text>`,
   link: (c) => `/assets/${c.assetId}`,
   preview: {

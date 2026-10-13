@@ -4,7 +4,7 @@ import { defineNotification } from '@/modules/core/notifications/notification-te
 
 const STATUS_TEXT: Record<string, string> = {
   in_progress: 'People Ops is working on it.',
-  waiting_internal: 'People Ops is waiting on another team. You will hear from us when it moves on.',
+  waiting_internal: 'People Ops is waiting on another team and tells you when it moves on.',
   waiting_on_requester: 'People Ops needs your reply before they can continue.',
   reopened: 'The request was reopened.',
   completed: 'The request is complete.',
@@ -34,8 +34,9 @@ export const peopleStatusChangedNotification = defineNotification({
     /** public notes of start_work / resume / complete */
     note: z.string().nullable(),
   }),
-  subject: (c) => `${c.reference} is now ${c.statusLabel}`,
-  title: (c) => `${c.reference} is now ${c.statusLabel}`,
+  // Sentence case (DESIGN §10): the status label reads lower case inside the sentence.
+  subject: (c) => `${c.reference} is now ${c.statusLabel.toLowerCase()}`,
+  title: (c) => `${c.reference} is now ${c.statusLabel.toLowerCase()}`,
   body: (c) =>
     [
       `${c.title}: ${STATUS_TEXT[c.status] ?? `Now ${c.statusLabel.toLowerCase()}.`}`,
