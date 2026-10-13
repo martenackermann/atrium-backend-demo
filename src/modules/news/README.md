@@ -1,8 +1,14 @@
 # News module (`src/modules/news`)
 
-**Status:** empty shell, registered in AppModule. Filled by **slice A4**.
+**Status:** built by slice A4 - news posts and useful links.
 
-**Scope (to be detailed from `_spec/atrium/SPEC.md` / `API.md`):** news articles.
+- `prisma/schema/news.prisma`: `news_posts` (sanitised `body_html`, cover attachment, soft delete),
+  `useful_links`.
+- Workflow `news_post` (SPEC §5.5) + job `news.publish-and-expire` (`jobs/news.jobs.ts`, `CRON_NEWS`).
+- Body sanitiser: `services/html-sanitizer.ts` (sanitize-html allowlist of SPEC §4.6).
+- Endpoints (API.md §7.2-§7.3): `/news*`, `/links*` (`PUT /links/order` before `/:id`).
+- Providers: search (published posts), my-day (`news`, `links`), attachment policy (covers).
+- Seed: `seed/news.story.ts` (S-N1..S-N8, 10 links) + `news.seed.ts` (generated gradient cover).
 
 ## Owned files
 

@@ -1,8 +1,19 @@
 # People module (`src/modules/people`)
 
-**Status:** empty shell, registered in AppModule. Filled by **slice A4**.
+**Status:** built by slice A4 - onboarding / offboarding / role-or-access-change requests.
 
-**Scope (to be detailed from `_spec/atrium/SPEC.md` / `API.md`):** onboarding/offboarding requests.
+- `prisma/schema/people.prisma`: `people_requests` (personal data as columns, private address as flat
+  `private*` columns), `people_request_comments` (`kind`: comment / question / status_note, #19),
+  `job_roles` (37 seeded).
+- Workflow `people_request` (SPEC §5.4): `machines/people-request.machine.ts` + `.workflow.ts`
+  (`requester_replied` is a system event fired by a requester's reply while waiting).
+- Visibility and personal data: `services/people-access.ts` (requester, manager, manager's deputy
+  read-only; personal data and documents for requester, manager, people_ops - never it_admin,
+  SPEC_RESOLUTIONS #24/#25).
+- Endpoints (API.md §7.1): `/people/requests*`, `/people/job-roles*`, `/people/queues/counts`.
+- Providers: inbox (`people.reply_required`, `people.triage_required`), search, attachment policy.
+- Notifications: `people.request_created`, `people.status_changed`, `people.comment_added`.
+- Seed: `seed/people.story.ts` (S-P1..S-P11 = PPL-000001..011, fillers 12..15) + `people.seed.ts`.
 
 ## Owned files
 

@@ -1,8 +1,10 @@
 # Home module (`src/modules/home`)
 
-**Status:** empty shell, registered in AppModule. Filled by **slice A4**.
+**Status:** built by slice A4 - `GET /home/my-day` (API.md §7.4).
 
-**Scope (to be detailed from `_spec/atrium/SPEC.md` / `API.md`):** the home/dashboard view.
+No tables. `services/home.service.ts` combines the core inbox head (`InboxService.inbox`, first 5)
+with the merged `MyDayContributor` fragments (`InboxService.myDay`): upcoming items of the next
+30 days (max 8, sorted), assets, news and links.
 
 ## Owned files
 
