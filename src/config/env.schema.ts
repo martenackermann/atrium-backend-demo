@@ -13,6 +13,20 @@ const commaList = z.string().transform((value) =>
 
 const int = (fallback: number, min = 0) => z.coerce.number().int().min(min).default(fallback);
 const cron = (fallback: string) => z.string().trim().min(9).default(fallback);
+/**
+ * Express `trust proxy`: "false", "true", a hop count ("1") or comma-separated addresses/subnets
+ * ("loopback", "10.0.0.0/8"). Only trusted proxies may set X-Forwarded-For, which decides the
+ * client IP of the login rate limit.
+ */
+const trustProxy = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((value): boolean | number | string => {
+    if (value === 'true' || value === 'false') return value === 'true';
+    return /^\d+$/.test(value) ? Number(value) : value;
+  });
+
 /** Empty string = unset (handy in .env files). */
 const optionalString = z
   .string()
@@ -36,14 +50,22 @@ export const envSchema = z.object({
   /** Public base URL of this API, used for signed download URLs. */
   API_PUBLIC_URL: z.url().default('http://localhost:3100'),
   /** Comma-separated allowlist (no wildcard). Default: the five local frontends (ports 3000-3004). */
-  CORS_ORIGINS: commaList.default([
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002',
-    'http://localhost:3003',
-    'http://localhost:3004',
-  ]),
+  CORS_ORIGINS: commaList
+    .refine((origins) => !origins.includes('*'), 'CORS_ORIGINS must list origins explicitly (no "*")')
+    .default([
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+      'http://localhost:3004',
+    ]),
   APP_TIMEZONE: z.string().min(1).default('Europe/Berlin'),
+  /**
+   * Proxies allowed to set X-Forwarded-For. Default: only a proxy on the same host. Behind a
+   * reverse proxy in a container network or PaaS set e.g. "1" (one hop) or its subnet. Never
+   * trust private ranges when the API port is reachable directly: clients could pick their IP.
+   */
+  TRUST_PROXY: trustProxy.default('loopback'),
 
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_TTL_MINUTES: int(480, 1),
@@ -107,12 +129,55 @@ export const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-/** Used by ConfigModule.forRoot({ validate }). Throws a readable error listing every problem. */
-export function validateEnv(raw: Record<string, unknown>): Env {
+/** Production secrets need at least this many characters. */
+export const MIN_PRODUCTION_SECRET_LENGTH = 32;
+/** Values from .env.example / docker-compose.yml and other obvious placeholders. */
+const PLACEHOLDER_SECRET = /change[-_ ]?me|placeholder|example|test-only/i;
+
+/**
+ * Secrets that must not be used in production: the shipped placeholders (.env.example,
+ * docker-compose.yml, schema defaults), short values, an ENCRYPTION_KEY of one repeated digit
+ * and one value reused for JWT and file signing. Returns one message per problem.
+ */
+export function productionSecretProblems(
+  env: Pick<Env, 'JWT_SECRET' | 'FILE_SIGNING_SECRET' | 'ENCRYPTION_KEY'>,
+): string[] {
+  const problems: string[] = [];
+  for (const key of ['JWT_SECRET', 'FILE_SIGNING_SECRET'] as const) {
+    const value = env[key];
+    if (PLACEHOLDER_SECRET.test(value)) problems.push(`${key}: is a placeholder - generate a random value`);
+    else if (value.length < MIN_PRODUCTION_SECRET_LENGTH) {
+      problems.push(`${key}: must be at least ${MIN_PRODUCTION_SECRET_LENGTH} characters in production`);
+    }
+  }
+  if (env.JWT_SECRET === env.FILE_SIGNING_SECRET) problems.push('FILE_SIGNING_SECRET: must differ from JWT_SECRET');
+  if (/^([0-9a-f])\1*$/i.test(env.ENCRYPTION_KEY)) {
+    problems.push('ENCRYPTION_KEY: is a placeholder (one repeated digit) - generate 32 random bytes as hex');
+  }
+  return problems;
+}
+
+/**
+ * Used by ConfigModule.forRoot({ validate }). Throws a readable error listing every problem.
+ * NODE_ENV=production with DEMO_MODE=false refuses placeholder secrets. A DEMO_MODE deployment
+ * (anyone may sign in as any persona) only warns, so `docker compose up` works unconfigured.
+ */
+export function validateEnv(raw: Record<string, unknown>, warn: (message: string) => void = console.warn): Env {
   const result = envSchema.safeParse(raw);
   if (!result.success) {
     const lines = result.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`);
     throw new Error(`Invalid environment configuration:\n${lines.join('\n')}`);
   }
-  return result.data;
+  const env = result.data;
+  if (env.NODE_ENV !== 'production') return env;
+  const problems = productionSecretProblems(env);
+  if (problems.length && !env.DEMO_MODE) {
+    const lines = problems.map((problem) => `  - ${problem}`);
+    throw new Error(`Invalid environment configuration (NODE_ENV=production, DEMO_MODE=false):\n${lines.join('\n')}`);
+  }
+  if (problems.length) {
+    const keys = problems.map((problem) => problem.split(':')[0]).join(', ');
+    warn(`[config] DEMO_MODE with placeholder secrets (${keys}) - set your own before storing real data.`);
+  }
+  return env;
 }

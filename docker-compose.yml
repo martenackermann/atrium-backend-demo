@@ -37,10 +37,13 @@ services:
       PORT: 3100
       LOG_LEVEL: info
       DATABASE_URL: postgresql://atrium:atrium@postgres:5432/atrium
-      # Demo-only default. Set JWT_SECRET in your shell or an .env file for anything public.
+      # Demo-only placeholders (the API logs a warning). Set your own JWT_SECRET, FILE_SIGNING_SECRET
+      # and ENCRYPTION_KEY in your shell or an .env file for anything public; with DEMO_MODE=false
+      # the API refuses to start with these placeholders.
       JWT_SECRET: ${JWT_SECRET:-docker-demo-secret-change-me-0123456789}
       JWT_TTL_MINUTES: 480
       FILE_SIGNING_SECRET: ${FILE_SIGNING_SECRET:-docker-demo-file-signing-change-me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       MAIL_FROM: Atrium <no-reply@example.com>
@@ -48,7 +51,9 @@ services:
       APP_BASE_URL: http://localhost:3000
       APP_TIMEZONE: Europe/Berlin
       CORS_ORIGINS: http://localhost:3000
-      DEMO_MODE: 'true'
+      DEMO_MODE: ${DEMO_MODE:-true}
+      # The API port is published directly: only trust X-Forwarded-For from this container.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback}
       STORAGE_DIR: /app/storage
       # Seed demo data on the first start (no-op once seeded).
       SEED_ON_FIRST_RUN: 'true'
