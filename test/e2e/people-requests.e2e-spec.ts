@@ -233,6 +233,23 @@ describe('people requests', () => {
       });
     });
 
+    it('never makes the subject of an offboarding its manager or deputy (SPEC §3.4)', async () => {
+      const res = await t
+        .http()
+        .post(api)
+        .set('Authorization', max)
+        .send({
+          type: 'offboarding',
+          title: 'Emma leaves',
+          subjectUserId: ids.emma,
+          effectiveDate: '2030-01-01',
+          managerId: ids.emma,
+          managerDeputyId: ids.emma,
+        })
+        .expect(422);
+      expect(Object.keys(res.body.errors).sort()).toEqual(['managerDeputyId', 'managerId']);
+    });
+
     it('allows a role change without a job role (SPEC_RESOLUTIONS #20) and defaults the manager', async () => {
       const req = await create(emma, {
         type: 'role_change',
@@ -526,6 +543,9 @@ describe('people requests', () => {
         .set('Authorization', ian)
         .send({ personalData: { privatePhone: '555-0000' } })
         .expect(403);
+      // ... and cannot reach it by naming itself manager (D13)
+      await t.http().patch(`${api}/${req.id}`).set('Authorization', ian).send({ managerId: ids.ian }).expect(403);
+      expect(((await get(ian, req.id).expect(200)).body as Detail).personalData).toBeNull();
       // closed: People Ops can no longer edit fields
       await act(paula, req.id, 'complete').expect(200);
       expect(

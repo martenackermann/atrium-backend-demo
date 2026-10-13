@@ -385,6 +385,16 @@ export class PeopleRequestsService {
         // it_admin never edits personal data (SPEC_RESOLUTIONS #24).
         throw ProblemException.forbidden('Only the requester, the manager and People Ops can change personal data.');
       }
+      // D13: back office without people_ops (it_admin) must not reach the personal data and
+      // documents by re-pointing the request's manager to itself.
+      if (
+        input.managerId === user.id &&
+        row.managerId !== user.id &&
+        row.requesterId !== user.id &&
+        !hasRole(user, 'people_ops')
+      ) {
+        throw ProblemException.forbidden('You cannot name yourself manager of this request.');
+      }
       if (input.version !== undefined && input.version !== row.version) throw ProblemException.versionConflict();
       if (keys.length === 0) return row;
 
@@ -522,6 +532,12 @@ export class PeopleRequestsService {
       else if (input.managerDeputyId === managerId) {
         fail('managerDeputyId', "The manager's deputy must be someone other than the manager.");
       }
+    }
+    // The person an offboarding / role change is about must not see it (SPEC §3.4).
+    if (subject && managerId === subject.id)
+      fail('managerId', 'The person this request is about cannot be its manager.');
+    if (subject && input.managerDeputyId === subject.id) {
+      fail('managerDeputyId', "The person this request is about cannot be the manager's deputy.");
     }
 
     let departmentId = input.departmentId === undefined ? (subject?.departmentId ?? null) : input.departmentId;
