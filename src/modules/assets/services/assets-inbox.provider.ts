@@ -49,7 +49,7 @@ export class AssetsInboxProvider implements InboxProvider {
       priority: a.reminderCount >= HIGH_PRIORITY_REMINDERS ? 'high' : 'normal',
       actingAs: null,
       link: `/assets/${a.assetId}`,
-      actionsPath: null,
+      actionsPath: `/assets/${a.assetId}`,
       entityId: a.assetId,
       createdAt: a.assignedAt.toISOString(),
       quickActions: [],

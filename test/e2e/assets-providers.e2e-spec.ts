@@ -61,11 +61,11 @@ describe('assets: providers and jobs', () => {
         subtitle: 'Vireo Pro 14 · AST-00118',
         priority: 'normal',
         actingAs: null,
-        actionsPath: null,
         quickActions: [],
       });
       expect(laptop.id).toBe(`assets.acceptance_required:${laptop.entityId}`);
       expect(laptop.link).toBe(`/assets/${laptop.entityId}`);
+      expect(laptop.actionsPath).toBe(`/assets/${laptop.entityId}`);
       const assignedDay = isoDateInZone(new Date(laptop.createdAt), clock.timeZone);
       const due = await t.prisma.$queryRaw<{ due: Date }[]>`
         SELECT (${addDaysIso(assignedDay, 7)}::date::timestamp AT TIME ZONE ${clock.timeZone}) AS due`;
