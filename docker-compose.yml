@@ -39,12 +39,14 @@ services:
       DATABASE_URL: postgresql://atrium:atrium@postgres:5432/atrium
       # Demo-only default. Set JWT_SECRET in your shell or an .env file for anything public.
       JWT_SECRET: ${JWT_SECRET:-docker-demo-secret-change-me-0123456789}
-      JWT_TTL: 8h
+      JWT_TTL_MINUTES: 480
+      FILE_SIGNING_SECRET: ${FILE_SIGNING_SECRET:-docker-demo-file-signing-change-me}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       MAIL_FROM: Atrium <no-reply@example.com>
-      APP_URL: http://localhost:${API_PORT:-3100}
-      FRONTEND_URL: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:${API_PORT:-3100}
+      APP_BASE_URL: http://localhost:3000
+      APP_TIMEZONE: Europe/Berlin
       CORS_ORIGINS: http://localhost:3000
       DEMO_MODE: 'true'
       STORAGE_DIR: /app/storage

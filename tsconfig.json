@@ -21,5 +21,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "test", "prisma.config.ts", "vitest.config.mts"]
+  "include": ["src", "test", "prisma/seed.ts", "prisma.config.ts", "vitest.config.mts"]
 }
