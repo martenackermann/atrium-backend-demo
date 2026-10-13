@@ -15,6 +15,14 @@ export const healthSchema = z.object({
 });
 export class HealthDto extends createZodDto(healthSchema) {}
 
+/**
+ * SMTP verification opens a fresh connection + EHLO each time, which can take seconds when the
+ * mail server is busy (parallel test runs). So mail gets a longer timeout, and a successful check
+ * is reused for a minute instead of reconnecting on every health request.
+ */
+const MAIL_TIMEOUT_MS = 5000;
+const MAIL_UP_CACHE_MS = 60_000;
+
 async function probe(fn: () => Promise<boolean>, timeoutMs = 2000): Promise<'up' | 'down'> {
   try {
     const ok = await Promise.race([
@@ -48,10 +56,19 @@ export class HealthController {
         return true;
       }),
       probe(() => this.queue.isHealthy()),
-      probe(() => this.mail.verify()),
+      this.probeMail(),
     ]);
     const ok = database === 'up' && queue === 'up' && mail === 'up';
     res.status(database === 'up' ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE);
     return { status: ok ? 'ok' : 'degraded', checks: { database, queue, mail } };
+  }
+
+  private mailUpUntil = 0;
+
+  private async probeMail(): Promise<'up' | 'down'> {
+    if (Date.now() < this.mailUpUntil) return 'up';
+    const result = await probe(() => this.mail.verify(), MAIL_TIMEOUT_MS);
+    this.mailUpUntil = result === 'up' ? Date.now() + MAIL_UP_CACHE_MS : 0;
+    return result;
   }
 }

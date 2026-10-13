@@ -69,6 +69,8 @@ describe('attachments: staged upload, link, signed download', () => {
     const file = await t.http().get(new URL(link.body.url).pathname).buffer(true).expect(200);
     expect(file.headers['content-type']).toBe('application/pdf');
     expect(file.headers['cache-control']).toBe('private, no-store');
+    // Embeddable from the SPA's origin (news covers as <img>); the signed token is the guard.
+    expect(file.headers['cross-origin-resource-policy']).toBe('cross-origin');
     expect(file.headers['content-disposition']).toBe(`inline; filename="contract.pdf"; filename*=UTF-8''contract.pdf`);
     expect(Buffer.from(file.body as Buffer).equals(PDF)).toBe(true);
 

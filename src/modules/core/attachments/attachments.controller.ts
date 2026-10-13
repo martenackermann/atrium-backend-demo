@@ -118,6 +118,9 @@ export class FilesController {
     if (!resolved) throw ProblemException.notFound('File');
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // The signed, expiring token is the access control: let the SPA on another origin embed
+    // files (<img> news covers) - helmet's default `same-origin` would block them.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     return new StreamableFile(this.attachments.openRead(resolved.row.storageKey), {
       type: resolved.row.mimeType,
       length: resolved.row.sizeBytes,
