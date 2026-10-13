@@ -165,6 +165,14 @@ describe('PIN cipher (D12)', () => {
     parts[3] = Buffer.from('xxxx').toString('base64url');
     expect(() => decryptPin(parts.join('.'), key)).toThrow();
   });
+
+  it('rejects truncated auth tags (no short-tag forgeries)', () => {
+    const parts = encryptPin('4821', key).split('.');
+    parts[2] = Buffer.from(parts[2] ?? '', 'base64url')
+      .subarray(0, 4)
+      .toString('base64url');
+    expect(() => decryptPin(parts.join('.'), key)).toThrow('Unsupported PIN format');
+  });
 });
 
 describe('CSV', () => {
@@ -175,5 +183,13 @@ describe('CSV', () => {
     const csv = toCsv(['A', 'B'], [[1, 'x']]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv.slice(1)).toBe('A,B\r\n1,x\r\n');
+  });
+
+  it('neutralises formula-like text (CSV injection) but leaves numbers alone', () => {
+    expect(csvCell('=HYPERLINK("https://evil.example.com")')).toBe(`"'=HYPERLINK(""https://evil.example.com"")"`);
+    for (const lead of ['+', '-', '@', '\t']) expect(csvCell(`${lead}1`)).toBe(`'${lead}1`);
+    expect(csvCell('\r1')).toBe(`"'\r1"`);
+    expect(csvCell(-12.5)).toBe('-12.5');
+    expect(csvCell('Riverton')).toBe('Riverton');
   });
 });

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ZodResponse } from 'nestjs-zod';
@@ -61,6 +61,7 @@ export class TravelRequestsController {
     const csv = await this.travel.exportCsv(user, query);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="travel-requests-${this.clock.today()}.csv"`);
+    res.setHeader('Cache-Control', 'private, no-store');
     return csv;
   }
 
@@ -121,6 +122,7 @@ export class TravelRequestsController {
   }
 
   @Get(':id/booking/pin')
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'Reveal the booking PIN (traveller, requester, travel desk); audited as view_pin' })
   @ZodResponse({ type: TravelPinDto })
   @ApiProblemResponses(403, 404)

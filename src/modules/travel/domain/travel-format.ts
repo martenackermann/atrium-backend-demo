@@ -25,12 +25,17 @@ export function formatTripWhen(startsAt: Date, endsAt: Date | null, timeZone: st
   return endsAt ? `${start} – ${formatDateTime(endsAt, timeZone)}` : start;
 }
 
-/** RFC 4180 CSV cell. */
 export type CsvValue = string | number | boolean | null | undefined;
 
+/**
+ * RFC 4180 CSV cell. Text starting with = + - @ TAB or CR gets a leading apostrophe, so
+ * spreadsheet apps show it instead of evaluating a formula (CSV injection): user input such as
+ * stations, branches or recharge customers ends up in the export.
+ */
 export function csvCell(value: CsvValue): string {
   if (value === null || value === undefined) return '';
-  const text = String(value);
+  let text = String(value);
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
