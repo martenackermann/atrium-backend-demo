@@ -5,12 +5,16 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify:
+    name: Lint, typecheck, test, build, OpenAPI
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -30,24 +34,24 @@ jobs:
         image: axllent/mailpit:latest
         ports: ['1025:1025', '8025:8025']
     env:
+      # The test suite sets every other variable itself (vitest.config.mts) and creates a fresh
+      # database next to TEST_DATABASE_URL for each run.
       DATABASE_URL: postgresql://dev:dev@localhost:5432/atrium_test
       TEST_DATABASE_URL: postgresql://dev:dev@localhost:5432/atrium_test
       PRISMA_HIDE_UPDATE_MESSAGE: '1'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      # pnpm version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
-
-      - name: Prisma generate
-        run: pnpm prisma:generate
 
       - name: Lint
         run: pnpm lint
@@ -55,8 +59,10 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Push schema to the test database
-        run: pnpm db:push
+      - name: Migrations match the Prisma schema
+        run: |
+          pnpm db:migrate:deploy
+          pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code
 
       - name: Test (unit + e2e)
         run: pnpm test
@@ -70,9 +76,26 @@ jobs:
           git diff --exit-code openapi.json
 
   docker:
+    name: Docker Compose smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - name: Build image
-        run: docker build -t atrium-backend-demo:ci .
+      - uses: actions/checkout@v7
+
+      - name: Build and start API + PostgreSQL + Mailpit
+        run: docker compose up --build --detach --wait --wait-timeout 300
+
+      - name: Health check and demo sign-in
+        run: |
+          curl --fail --silent --show-error http://localhost:3100/api/v1/health
+          curl --fail --silent --show-error http://localhost:3100/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"emma.employee@example.com","password":"demo1234"}' | grep -q '"accessToken"'
+
+      - name: Logs
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop
+        if: always()
+        run: docker compose down --volumes
