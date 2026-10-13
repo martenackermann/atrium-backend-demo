@@ -49,7 +49,7 @@ describe('training providers and counts', () => {
     const goals = items.find((i) => i.type === 'training.goals_missing')!;
     expect(goals).toMatchObject({
       title: 'Set goals: First Aid at Work Refresher',
-      actionsPath: null,
+      actionsPath: expect.stringMatching(/^\/training\/participations\//),
       quickActions: [],
     });
     expect(goals.link).toMatch(/^\/training\/participations\/[0-9a-f-]+#goals$/);
