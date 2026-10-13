@@ -131,11 +131,16 @@ export class TravelAccessService {
   /** Booking PIN (SPEC_RESOLUTIONS #24): traveller, requester, travel desk - not it_admin. */
   canViewPin(
     viewer: TravelViewer,
-    row: TravelAccessRow & { booking?: { pinEncrypted: string | null } | null },
+    row: TravelAccessRow & { status: string; booking?: { pinEncrypted: string | null } | null },
   ): boolean {
-    if (!row.booking?.pinEncrypted) return false;
+    if (!this.pinActive(row)) return false;
     const me = viewer.user.id;
     return viewer.isDesk || row.travellerId === me || row.requesterId === me;
+  }
+
+  /** A PIN exists and the booking is live (booked, or cancellation pending). */
+  pinActive(row: { status: string; booking?: { pinEncrypted: string | null } | null }): boolean {
+    return !!row.booking?.pinEncrypted && (row.status === 'booked' || row.status === 'cancellation_requested');
   }
 
   /** SPEC §6.2 for the travel approval step (a manager step). */

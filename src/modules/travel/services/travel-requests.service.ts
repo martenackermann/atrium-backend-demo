@@ -219,7 +219,7 @@ export class TravelRequestsService {
   /** Audited PIN reveal (D12, SPEC_RESOLUTIONS #24). */
   async pin(id: string, user: AuthUser): Promise<{ pin: string }> {
     const { row, viewer } = await this.findVisible(id, user);
-    if (!row.booking?.pinEncrypted) throw ProblemException.notFound('PIN');
+    if (!row.booking?.pinEncrypted || !this.access.pinActive(row)) throw ProblemException.notFound('PIN');
     if (!this.access.canViewPin(viewer, row))
       throw ProblemException.forbidden('Only the traveller, the requester and the travel desk can see the PIN.');
     const pin = decryptPin(row.booking.pinEncrypted, this.config.get('ENCRYPTION_KEY'));
