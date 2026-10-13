@@ -179,6 +179,35 @@ describe('WorkflowService (toy request machine)', () => {
       expect(t.notified()).toEqual([{ kind: 'toy.declined' }]);
     });
 
+    it('records a comment as audit metadata when the body has no reason', async () => {
+      t.insert({ id: 'r4', status: 'submitted' });
+      const result = await t.service.apply(t.workflow, {
+        id: 'r4',
+        action: 'approve',
+        actor: approver,
+        ability: abilityFor(approver),
+        input: { comment: 'Enjoy the course' },
+      });
+      expect(t.audit().at(-1)).toMatchObject({ action: 'approve', reason: null, metadata: { comment: 'Enjoy the course' } });
+      expect(result.toState).toBe('approved');
+    });
+
+    it('merges the auditMetadata hook (onBehalfOfName) and lets it suppress the comment', async () => {
+      const hook = vi.fn(() => ({ onBehalfOfName: 'Priya Raman', comment: null }));
+      t.insert({ id: 'r5', status: 'submitted' });
+      await t.service.apply(
+        { ...t.workflow, auditMetadata: hook },
+        { id: 'r5', action: 'approve', actor: approver, ability: abilityFor(approver), input: { comment: 'internal' } },
+      );
+      expect(hook).toHaveBeenCalledWith(expect.objectContaining({ action: 'approve', actingAs: 'approver' }));
+      expect(t.audit().at(-1)?.metadata).toEqual({ onBehalfOfName: 'Priya Raman' });
+    });
+
+    it('stores no metadata when there is nothing to add', async () => {
+      await t.service.apply(t.workflow, { id: 'r1', action: 'submit', actor: owner, ability: abilityFor(owner) });
+      expect(t.audit().at(-1)?.metadata).toBeNull();
+    });
+
     it('rejects a body for actions without input', async () => {
       await expect(
         t.service.apply(t.workflow, {

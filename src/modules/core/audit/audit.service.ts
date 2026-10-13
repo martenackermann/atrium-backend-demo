@@ -224,7 +224,8 @@ export class AuditService {
       action: row.action,
       fromState: row.fromState,
       toState: row.toState,
-      reason: row.reason,
+      // Actions without a reason field (approve, book, ...) show their comment instead.
+      reason: row.reason ?? (typeof metadata?.comment === 'string' ? metadata.comment : null),
       changes:
         ((row.changes as FieldChange[] | null) ?? null)?.map((c) => ({
           ...c,

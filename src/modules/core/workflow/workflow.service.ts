@@ -33,6 +33,17 @@ export interface ApplyTransitionParams {
 
 const EMPTY_BODY = z.strictObject({});
 
+/** Non-empty string property of a validated action body, else null. */
+function stringField(input: unknown, key: string): string | null {
+  if (typeof input !== 'object' || input === null) return null;
+  const value = (input as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+function withoutNullish(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== null && value !== undefined));
+}
+
 /** Default actingAs when an action has no `authorize` hook. */
 export function defaultActingAs(user: AuthUser, module: ModuleName): ActingAs {
   if (hasRole(user, 'it_admin')) return 'admin';
@@ -130,10 +141,17 @@ export class WorkflowService {
 
       const [next, executed] = transition(def.machine, snapshot, event);
       const toState = stateValueToString(next.value as StateValue);
-      const reason =
-        typeof input === 'object' && input !== null && typeof (input as { reason?: unknown }).reason === 'string'
-          ? (input as { reason: string }).reason
-          : null;
+      const reason = stringField(input, 'reason');
+      const comment = reason === null ? stringField(input, 'comment') : null;
+      const extra = await def.auditMetadata?.({
+        tx,
+        entity,
+        action: params.action,
+        actor: params.actor,
+        actingAs,
+        input,
+      });
+      const metadata = withoutNullish({ ...(comment ? { comment } : {}), ...(extra ?? {}) });
       const change: TransitionChange = {
         action: params.action,
         fromState: persisted.value,
@@ -142,6 +160,7 @@ export class WorkflowService {
         actingAs,
         input,
         reason,
+        metadata,
       };
 
       const updated = await def.persist(tx, entity, { value: toState, context: next.context as unknown }, change);
@@ -158,6 +177,7 @@ export class WorkflowService {
           fromState: persisted.value,
           toState,
           reason,
+          metadata: Object.keys(metadata).length ? metadata : null,
           entityLabel: def.entityLabel?.(updated),
         },
         tx,

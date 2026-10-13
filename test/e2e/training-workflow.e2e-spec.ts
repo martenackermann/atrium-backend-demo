@@ -84,10 +84,23 @@ describe('training participation workflow', () => {
 
     it('active deputy decides for the principal (Max for Priya, S-T8)', async () => {
       const id = await attendeeId(t, 8);
-      const res = await act(max, id, 'approve').expect(200);
+      const res = await act(max, id, 'approve', { comment: 'Covering for Priya' }).expect(200);
       expect(res.body.managerDecision).toMatchObject({ actingAs: 'deputy', by: { id: ids.max } });
       const audit = await auditOf(id);
-      expect(audit.at(-1)).toMatchObject({ action: 'approve', actingAs: 'deputy' });
+      expect(audit.at(-1)).toMatchObject({
+        action: 'approve',
+        actingAs: 'deputy',
+        metadata: expect.objectContaining({ onBehalfOfName: 'Priya Raman', comment: 'Covering for Priya' }),
+      });
+      const timeline = await t
+        .http()
+        .get(`${API}/training/participations/${id}/timeline`)
+        .set('Authorization', max)
+        .expect(200);
+      expect(timeline.body.at(-1)).toMatchObject({
+        summary: 'Max Manager approved (as deputy for Priya Raman)',
+        reason: 'Covering for Priya',
+      });
     });
 
     it("manager chain overrides a manager step (Max for the Eastgate lead's report)", async () => {

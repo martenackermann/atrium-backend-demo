@@ -84,6 +84,12 @@ export class TrainingAttendeeWorkflow {
         return tx.trainingAttendee.findFirst({ where: { id, ...viewer.attendeeWhere() }, include: attendeeInclude });
       },
       persist: (tx, row, next, change) => this.persist(tx, row, next.value, change),
+      // Timeline: "Max Manager approved (as deputy for Priya Raman)".
+      auditMetadata: ({ entity, actingAs }) => {
+        if (actingAs !== 'deputy') return null;
+        const principal = entity.status === 'pending_executive_approval' ? entity.executiveApprover : entity.approver;
+        return principal ? { onBehalfOfName: principal.displayName } : null;
+      },
       afterTransition: async ({ tx, before, entity, change, notifies }) => {
         await this.afterTransition(tx, before, entity, change, notifies);
       },

@@ -61,6 +61,21 @@ export interface TransitionChange {
   input: unknown;
   /** `input.reason` when the body has one (stored on the audit row). */
   reason: string | null;
+  /**
+   * Extra audit metadata stored on the transition's audit row: `comment` (from `input.comment`
+   * when the body has no reason) merged with the definition's `auditMetadata` hook.
+   */
+  metadata: Record<string, unknown>;
+}
+
+/** Context of the optional `auditMetadata` hook (runs after the permission and body checks). */
+export interface AuditMetadataContext<TEntity> {
+  tx: PrismaTx;
+  entity: TEntity;
+  action: string;
+  actor: AuthUser;
+  actingAs: ActingAs;
+  input: unknown;
 }
 
 /** Params of the `notify` machine action: a notification intent handled in `afterTransition`. */
@@ -120,6 +135,16 @@ export interface WorkflowDefinition<
   }) => Promise<void>;
   /** Label for audit rows, e.g. the attendee's name or the reference. */
   entityLabel?: (entity: TEntity) => string;
+  /**
+   * Extra metadata for the transition's audit row, merged over the automatic `comment`.
+   * Recognised keys: `onBehalfOfName` (timeline reads "approved (as deputy for {name})" when
+   * actingAs is `deputy`) and `comment` (shown as the entry's quoted text when there is no
+   * reason). Return null/undefined for nothing; `{ comment: null }` suppresses the automatic
+   * comment (e.g. for internal notes).
+   */
+  auditMetadata?: (
+    ctx: AuditMetadataContext<TEntity>,
+  ) => Promise<Record<string, unknown> | null | undefined> | Record<string, unknown> | null | undefined;
 }
 
 /** Identity helper for type inference. */
