@@ -1,20 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-export interface SignedFilePayload {
-  /** Storage key. */
-  k: string;
-  /** Expiry, unix seconds. */
+/** Any JSON payload with an expiry `e` (unix seconds). */
+export interface SignedPayload {
   e: number;
-  /** Download file name. */
-  n?: string;
-  /** MIME type. */
-  t?: string;
-  /** Content-Disposition type. */
-  d?: 'inline' | 'attachment';
+  [key: string]: unknown;
 }
 
 export type VerifyResult =
-  | { ok: true; payload: SignedFilePayload }
+  | { ok: true; payload: SignedPayload }
   | { ok: false; reason: 'malformed' | 'signature' | 'expired' };
 
 const encode = (value: Buffer | string): string => Buffer.from(value).toString('base64url');
@@ -24,7 +17,7 @@ function sign(secret: Buffer, body: string): Buffer {
 }
 
 /** `<base64url(json)>.<base64url(hmac-sha256)>` - opaque, URL-safe, tamper-proof. */
-export function createSignedToken(secret: Buffer, payload: SignedFilePayload): string {
+export function createSignedToken(secret: Buffer, payload: SignedPayload): string {
   const body = encode(JSON.stringify(payload));
   return `${body}.${encode(sign(secret, body))}`;
 }
@@ -37,13 +30,15 @@ export function verifySignedToken(secret: Buffer, token: string, nowSeconds = Ma
   const given = Buffer.from(signature, 'base64url');
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, reason: 'signature' };
 
-  let payload: SignedFilePayload;
+  let payload: SignedPayload;
   try {
-    payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as SignedFilePayload;
+    payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as SignedPayload;
   } catch {
     return { ok: false, reason: 'malformed' };
   }
-  if (typeof payload.k !== 'string' || typeof payload.e !== 'number') return { ok: false, reason: 'malformed' };
+  if (typeof payload !== 'object' || payload === null || typeof payload.e !== 'number') {
+    return { ok: false, reason: 'malformed' };
+  }
   if (payload.e < nowSeconds) return { ok: false, reason: 'expired' };
   return { ok: true, payload };
 }

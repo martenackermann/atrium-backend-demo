@@ -1,11 +1,9 @@
 import { Global, Module } from '@nestjs/common';
-import { FilesController } from './files.controller';
 import { StorageService } from './storage.service';
 
-/** Local-disk uploads + signed download URLs. */
+/** Private blob storage + signed tokens. Attachments (metadata, access, downloads) live in core. */
 @Global()
 @Module({
-  controllers: [FilesController],
   providers: [StorageService],
   exports: [StorageService],
 })

@@ -4,8 +4,9 @@ import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { PUBLIC_OPENAPI_EXTENSION } from '@/common/auth/public.decorator';
 import { PROBLEM_DETAILS_OPENAPI_SCHEMA } from '@/common/http/api-problem-response.decorator';
 
-export const DOCS_PATH = 'docs';
-export const OPENAPI_JSON_PATH = 'docs/openapi.json';
+/** Swagger UI at /api/docs, JSON at /api/openapi.json (API.md §1, outside /v1). */
+export const DOCS_PATH = 'api/docs';
+export const OPENAPI_JSON_PATH = 'api/openapi.json';
 
 const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const;
 

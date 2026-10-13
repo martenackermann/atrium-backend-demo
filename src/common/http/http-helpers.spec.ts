@@ -11,7 +11,7 @@ import { configureZod, zodIssuesToFieldErrors } from './zod-errors';
 
 describe('pagination', () => {
   it('defaults and coerces query strings', () => {
-    expect(paginationQuerySchema.parse({})).toEqual({ page: 1, perPage: 20 });
+    expect(paginationQuerySchema.parse({})).toEqual({ page: 1, perPage: 25 });
     expect(paginationQuerySchema.parse({ page: '3', perPage: '50' })).toEqual({ page: 3, perPage: 50 });
     expect(paginationQuerySchema.safeParse({ perPage: '101' }).success).toBe(false);
     expect(paginationQuerySchema.safeParse({ page: '0' }).success).toBe(false);
@@ -90,28 +90,37 @@ describe('ProblemDetailsFilter.toProblem', () => {
 
   it('maps ProblemException with extensions', () => {
     expect(filter.toProblem(ProblemException.invalidTransition('approve', 'draft'))).toEqual({
-      type: 'https://atrium.example.com/problems/invalid-transition',
+      type: 'https://atrium.example.com/problems/invalid_transition',
       title: 'Action not available',
       status: 409,
-      detail: 'Action "approve" is not available in state "draft".',
-      action: 'approve',
-      state: 'draft',
+      code: 'invalid_transition',
+      detail: "Action 'approve' is not available in state 'draft'.",
+    });
+    expect(filter.toProblem(ProblemException.conflict('Taken', 'serial_taken', { serial: 'X1' }))).toMatchObject({
+      type: 'https://atrium.example.com/problems/serial_taken',
+      code: 'serial_taken',
+      serial: 'X1',
     });
   });
 
   it('maps Nest HTTP exceptions, throttling and zod errors', () => {
     expect(filter.toProblem(new NotFoundException('Cannot GET /x'))).toMatchObject({
       status: 404,
+      code: 'not_found',
       title: 'Not Found',
       detail: 'Cannot GET /x',
     });
     expect(filter.toProblem(new HttpException('teapot', 418))).toMatchObject({
       status: 418,
-      type: expect.stringContaining('http-error'),
+      code: 'conflict',
     });
-    expect(filter.toProblem(new ThrottlerException())).toMatchObject({ status: 429 });
+    expect(filter.toProblem(new ThrottlerException())).toMatchObject({ status: 429, code: 'rate_limited' });
     const zodError = z.object({ a: z.string() }).safeParse({}).error;
-    expect(filter.toProblem(zodError)).toMatchObject({ status: 422, errors: { a: [expect.any(String)] } });
+    expect(filter.toProblem(zodError)).toMatchObject({
+      status: 422,
+      code: 'validation_failed',
+      errors: { a: [expect.any(String)] },
+    });
   });
 
   it('maps Prisma unique/not-found errors and hides unknown errors', () => {
@@ -123,9 +132,10 @@ describe('ProblemDetailsFilter.toProblem', () => {
     });
     expect(filter.toProblem(known('P2025'))).toMatchObject({ status: 404 });
     expect(filter.toProblem(new Error('secret internals'))).toEqual({
-      type: 'https://atrium.example.com/problems/internal-error',
+      type: 'https://atrium.example.com/problems/internal_error',
       title: 'Internal Server Error',
       status: 500,
+      code: 'internal_error',
       detail: 'An unexpected error occurred.',
     });
   });

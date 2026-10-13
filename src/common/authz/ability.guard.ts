@@ -25,7 +25,7 @@ export class AbilityGuard implements CanActivate {
       this.reflector.getAllAndMerge<AbilityCheck[]>(CHECK_ABILITY_KEY, [context.getHandler(), context.getClass()]) ??
       [];
     if (checks.length === 0) return true;
-    if (!request.user) throw ProblemException.unauthorized();
+    if (!request.user) throw ProblemException.unauthenticated();
 
     const ability = request.ability;
     if (!checks.every((check) => runAbilityCheck(ability, check))) throw ProblemException.forbidden();

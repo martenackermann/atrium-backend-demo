@@ -5,28 +5,32 @@ import type { AppAbility } from '@/common/authz/ability.types';
 import { ProblemException } from '@/common/http/problem';
 import type { PrismaService } from '@/database/prisma.service';
 import type { PrismaTx } from '@/database/prisma.types';
-import type { QueueService } from '@/infra/queue/queue.service';
-import { type ToyRequest, toyRequestWorkflow } from './examples/toy-request.workflow';
+import type { AuditInput, AuditService } from '../audit/audit.service';
+import { describeWorkflow } from '../meta/workflow.registry';
+import { type ToyRequest, toyRequestWorkflow, toyRequestWorkflowMeta } from './examples/toy-request.workflow';
 import { stateValueToString } from './state-value';
-import { WORKFLOW_NOTIFY_JOB } from './workflow.actions';
+import type { NotifyParams } from './workflow.types';
 import { WorkflowService } from './workflow.service';
 
-const owner: AuthUser = { id: 'u-owner', email: 'emma.employee@example.com', roles: ['employee'] };
-const approver: AuthUser = { id: 'u-approver', email: 'mia.manager@example.com', roles: ['manager'] };
+const owner: AuthUser = {
+  id: 'u-owner',
+  email: 'emma.employee@example.com',
+  displayName: 'Emma Employee',
+  roles: ['employee'],
+  isSiteManager: false,
+  sessionId: null,
+};
+const approver: AuthUser = { ...owner, id: 'u-approver', displayName: 'Max Manager', roles: ['employee', 'manager'] };
 
 function abilityFor(user: AuthUser): AppAbility {
-  const rules: AppAbility['rules'] = [
-    { action: 'submit', subject: 'ToyRequest', conditions: { ownerId: user.id } as never },
-  ];
-  if (user.roles.includes('manager')) rules.push({ action: 'decide', subject: 'ToyRequest' });
-  return createAppAbility(rules);
+  return createAppAbility(user.roles.includes('manager') ? [{ action: 'decide', subject: 'ToyRequest' }] : []);
 }
 
 /** In-memory "database": transaction callbacks run on a copy that is only kept on success. */
 function setup() {
   let rows = new Map<string, ToyRequest>();
-  let audit: unknown[] = [];
-  const sent: { name: string; data: unknown; tx: unknown }[] = [];
+  let audit: AuditInput[] = [];
+  let notified: NotifyParams[] = [];
 
   const store = {
     find: (_tx: PrismaTx, id: string) => Promise.resolve(rows.get(id) ? { ...rows.get(id)! } : null),
@@ -37,35 +41,30 @@ function setup() {
       rows.set(id, updated);
       return Promise.resolve(updated);
     },
+    notified: (n: NotifyParams[]) => notified.push(...n),
   };
 
   const prisma = {
     $transaction: vi.fn(async (fn: (tx: PrismaTx) => Promise<unknown>) => {
-      const snapshot = { rows: new Map(rows), audit: [...audit], sent: sent.length };
-      const tx = { auditEntry: { create: vi.fn(({ data }: { data: unknown }) => audit.push(data)) } };
+      const snapshot = { rows: new Map(rows), audit: [...audit], notified: [...notified] };
       try {
-        return await fn(tx as unknown as PrismaTx);
+        return await fn({} as PrismaTx);
       } catch (error) {
         rows = snapshot.rows;
         audit = snapshot.audit;
-        sent.length = snapshot.sent;
+        notified = snapshot.notified;
         throw error;
       }
     }),
   };
-  const queue = {
-    send: vi.fn((name: string, data: unknown, options?: { tx?: unknown }) => {
-      sent.push({ name, data, tx: options?.tx });
-      return Promise.resolve('job-id');
-    }),
-  };
+  const auditService = { record: vi.fn((input: AuditInput) => Promise.resolve(void audit.push(input))) };
 
-  const service = new WorkflowService(prisma as unknown as PrismaService, queue as unknown as QueueService);
+  const service = new WorkflowService(prisma as unknown as PrismaService, auditService as unknown as AuditService);
   const workflow = toyRequestWorkflow(store);
   const insert = (row: Partial<ToyRequest> & { id: string }) =>
     rows.set(row.id, { ownerId: owner.id, status: 'draft', decidedBy: null, reason: null, version: 1, ...row });
 
-  return { service, workflow, insert, rows: () => rows, audit: () => audit, sent };
+  return { service, workflow, insert, rows: () => rows, audit: () => audit, notified: () => notified };
 }
 
 describe('stateValueToString', () => {
@@ -88,43 +87,36 @@ describe('WorkflowService (toy request machine)', () => {
     t.insert({ id: 'r1' });
   });
 
-  describe('snapshotOf', () => {
-    it('resolves a machine snapshot from persisted state', () => {
-      const snapshot = t.service.snapshotOf(t.workflow.machine, {
-        value: 'submitted',
-        context: { ownerId: owner.id },
-      });
-      expect(snapshot.value).toBe('submitted');
-      expect(snapshot.context).toEqual({ ownerId: owner.id });
-    });
+  it('resolves a machine snapshot from persisted state', () => {
+    const snapshot = t.service.snapshotOf(t.workflow.machine, { value: 'submitted', context: { ownerId: owner.id } });
+    expect(snapshot.value).toBe('submitted');
+    expect(snapshot.context).toEqual({ ownerId: owner.id });
   });
 
   describe('availableActions', () => {
-    it('combines machine guards with abilities', () => {
+    it('combines machine guards, CASL and authorize hooks, in definition order', async () => {
       const draft = t.rows().get('r1')!;
-      expect(t.service.availableActions(t.workflow, draft, owner, abilityFor(owner))).toEqual(['submit']);
-      // approver has no submit permission on someone else's request, and nothing to decide in draft
-      expect(t.service.availableActions(t.workflow, draft, approver, abilityFor(approver))).toEqual([]);
+      expect(await t.service.availableActions(t.workflow, draft, owner, abilityFor(owner))).toEqual(['submit']);
+      expect(await t.service.availableActions(t.workflow, draft, approver, abilityFor(approver))).toEqual([]);
 
       const submitted = { ...draft, status: 'submitted' };
-      expect(t.service.availableActions(t.workflow, submitted, owner, abilityFor(owner))).toEqual(['withdraw']);
-      expect(t.service.availableActions(t.workflow, submitted, approver, abilityFor(approver))).toEqual([
+      expect(await t.service.availableActions(t.workflow, submitted, owner, abilityFor(owner))).toEqual(['withdraw']);
+      expect(await t.service.availableActions(t.workflow, submitted, approver, abilityFor(approver))).toEqual([
         'approve',
-        'reject',
+        'decline',
       ]);
     });
 
-    it('hides actions whose guard fails even when the ability allows them', () => {
-      // a manager who owns the request may not approve it (guard: actorIsNotOwner)
-      const ownManager: AuthUser = { ...approver, id: owner.id };
+    it('hides actions whose machine guard fails even when permissions allow them', async () => {
+      const ownManager: AuthUser = { ...approver, id: owner.id }; // a manager may not approve their own request
       const submitted = { ...t.rows().get('r1')!, status: 'submitted' };
-      expect(t.service.availableActions(t.workflow, submitted, ownManager, abilityFor(ownManager))).toEqual([
+      expect(await t.service.availableActions(t.workflow, submitted, ownManager, abilityFor(ownManager))).toEqual([
         'withdraw',
       ]);
     });
 
-    it('returns a view with state and actions', () => {
-      expect(t.service.view(t.workflow, t.rows().get('r1')!, owner, abilityFor(owner))).toEqual({
+    it('returns a view with state and actions', async () => {
+      expect(await t.service.view(t.workflow, t.rows().get('r1')!, owner, abilityFor(owner))).toEqual({
         state: 'draft',
         availableActions: ['submit'],
       });
@@ -132,7 +124,7 @@ describe('WorkflowService (toy request machine)', () => {
   });
 
   describe('apply', () => {
-    it('transitions, persists, audits and enqueues notifications in one transaction', async () => {
+    it('transitions, persists, audits and hands notify intents to afterTransition', async () => {
       const result = await t.service.apply(t.workflow, {
         id: 'r1',
         action: 'submit',
@@ -140,90 +132,122 @@ describe('WorkflowService (toy request machine)', () => {
         ability: abilityFor(owner),
       });
 
-      expect(result).toMatchObject({ fromState: 'draft', toState: 'submitted', notifications: 1 });
+      expect(result).toMatchObject({ fromState: 'draft', toState: 'submitted', actingAs: 'self' });
       expect(t.rows().get('r1')).toMatchObject({ status: 'submitted', version: 2 });
       expect(t.audit()).toEqual([
         expect.objectContaining({
-          entityType: 'ToyRequest',
+          module: 'core',
+          entityType: 'toy_request',
           entityId: 'r1',
           action: 'submit',
           fromState: 'draft',
           toState: 'submitted',
           actorId: owner.id,
+          actingAs: 'self',
+          reason: null,
         }),
       ]);
-      expect(t.sent).toHaveLength(1);
-      expect(t.sent[0]).toMatchObject({
-        name: WORKFLOW_NOTIFY_JOB,
-        data: { kind: 'toy.submitted', to: ['approvers'], workflow: 'toy-request', entityId: 'r1' },
-      });
-      expect(t.sent[0]?.tx).toBeDefined();
+      expect(t.notified()).toEqual([{ kind: 'toy.submitted' }]);
     });
 
-    it('validates action input (422) and records it in context', async () => {
+    it('validates the body (422), records the reason and the decision', async () => {
       t.insert({ id: 'r2', status: 'submitted' });
-      const reject = (input: unknown) =>
+      const decline = (input: unknown) =>
         t.service.apply(t.workflow, {
           id: 'r2',
-          action: 'reject',
+          action: 'decline',
           actor: approver,
           ability: abilityFor(approver),
           input,
         });
 
-      await expect(reject({ reason: '' })).rejects.toMatchObject({
-        problem: { status: 422, errors: { reason: [expect.any(String)] } },
+      await expect(decline({ reason: '' })).rejects.toMatchObject({
+        problem: { status: 422, code: 'validation_failed', errors: { reason: [expect.any(String)] } },
+      });
+      await expect(decline({ reason: 'Budget exhausted', extra: 1 })).rejects.toMatchObject({
+        problem: { status: 422 },
       });
 
-      const result = await reject({ reason: 'Budget exhausted' });
-      expect(result.toState).toBe('rejected');
+      const result = await decline({ reason: 'Budget exhausted' });
+      expect(result).toMatchObject({ toState: 'declined', actingAs: 'approver' });
       expect(t.rows().get('r2')).toMatchObject({
-        status: 'rejected',
+        status: 'declined',
         decidedBy: approver.id,
         reason: 'Budget exhausted',
       });
-      expect(t.sent.at(-1)?.data).toMatchObject({ kind: 'toy.rejected', to: ['owner'] });
+      expect(t.audit().at(-1)).toMatchObject({ action: 'decline', reason: 'Budget exhausted', actingAs: 'approver' });
+      expect(t.notified()).toEqual([{ kind: 'toy.declined' }]);
     });
 
-    it('answers 409 when the action is not available in the current state', async () => {
+    it('rejects a body for actions without input', async () => {
+      await expect(
+        t.service.apply(t.workflow, {
+          id: 'r1',
+          action: 'submit',
+          actor: owner,
+          ability: abilityFor(owner),
+          input: { x: 1 },
+        }),
+      ).rejects.toMatchObject({ problem: { status: 422 } });
+    });
+
+    it('answers 409 invalid_transition when permitted but not available in the state', async () => {
       const error = await t.service
         .apply(t.workflow, { id: 'r1', action: 'approve', actor: approver, ability: abilityFor(approver) })
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(ProblemException);
-      expect((error as ProblemException).problem).toMatchObject({ status: 409, type: 'invalid-transition' });
+      expect((error as ProblemException).problem).toMatchObject({ status: 409, code: 'invalid_transition' });
       expect(t.audit()).toHaveLength(0);
-      expect(t.sent).toHaveLength(0);
     });
 
-    it('answers 403 when the ability forbids the action', async () => {
+    it('answers 403 when the permission check fails', async () => {
       await expect(
         t.service.apply(t.workflow, { id: 'r1', action: 'submit', actor: approver, ability: abilityFor(approver) }),
+      ).rejects.toMatchObject({ problem: { status: 403, code: 'forbidden' } });
+      t.insert({ id: 'r3', status: 'submitted' });
+      await expect(
+        t.service.apply(t.workflow, { id: 'r3', action: 'approve', actor: owner, ability: abilityFor(owner) }),
       ).rejects.toMatchObject({ problem: { status: 403 } });
     });
 
     it('answers 404 for unknown entities and actions', async () => {
       const base = { actor: owner, ability: abilityFor(owner) };
-      await expect(t.service.apply(t.workflow, { ...base, id: 'nope', action: 'submit' })).rejects.toMatchObject({
-        problem: { status: 404 },
-      });
-      await expect(t.service.apply(t.workflow, { ...base, id: 'r1', action: 'explode' })).rejects.toMatchObject({
-        problem: { status: 404 },
-      });
-      await expect(t.service.apply(t.workflow, { ...base, id: 'r1', action: 'toString' })).rejects.toMatchObject({
-        problem: { status: 404 },
-      });
+      for (const [id, action] of [
+        ['nope', 'submit'],
+        ['r1', 'explode'],
+        ['r1', 'toString'],
+      ]) {
+        await expect(t.service.apply(t.workflow, { ...base, id: id, action: action })).rejects.toMatchObject({
+          problem: { status: 404, code: 'not_found' },
+        });
+      }
     });
 
-    it('answers 409 and rolls back on a concurrent modification', async () => {
-      const workflow = {
-        ...t.workflow,
-        persist: () => Promise.resolve(null),
-      };
+    it('answers 409 version_conflict and rolls back when persist loses a race', async () => {
+      const workflow = { ...t.workflow, persist: () => Promise.resolve(null) };
       await expect(
         t.service.apply(workflow, { id: 'r1', action: 'submit', actor: owner, ability: abilityFor(owner) }),
-      ).rejects.toMatchObject({ problem: { status: 409, type: 'conflict' } });
+      ).rejects.toMatchObject({ problem: { status: 409, code: 'version_conflict' } });
       expect(t.rows().get('r1')?.status).toBe('draft');
       expect(t.audit()).toHaveLength(0);
     });
+  });
+});
+
+describe('describeWorkflow (GET /meta/workflows/{name})', () => {
+  it('derives states and transitions from the machine', () => {
+    const view = describeWorkflow(toyRequestWorkflowMeta);
+    expect(view.states).toEqual([
+      { id: 'draft', label: 'Draft', tone: 'neutral', terminal: false },
+      { id: 'submitted', label: 'Submitted', tone: 'waiting', terminal: false },
+      { id: 'approved', label: 'Approved', tone: 'positive', terminal: true },
+      { id: 'declined', label: 'Declined', tone: 'negative', terminal: true },
+    ]);
+    expect(view.transitions).toEqual([
+      { from: 'draft', to: 'submitted', event: 'submit', label: 'Submit', actors: ['Owner'] },
+      { from: 'submitted', to: 'draft', event: 'withdraw', label: 'Withdraw', actors: ['Owner'] },
+      { from: 'submitted', to: 'approved', event: 'approve', label: 'Approve', actors: ['Approver'] },
+      { from: 'submitted', to: 'declined', event: 'decline', label: 'Decline', actors: ['Approver'] },
+    ]);
   });
 });

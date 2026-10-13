@@ -16,7 +16,9 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(AppConfig);
   await app.listen(config.get('PORT'));
-  logger.log(`Atrium API listening on port ${config.get('PORT')} - docs at ${config.get('APP_URL')}/${DOCS_PATH}`);
+  logger.log(
+    `Atrium API listening on port ${config.get('PORT')} - docs at ${config.get('API_PUBLIC_URL')}/${DOCS_PATH}`,
+  );
 }
 
 void bootstrap();

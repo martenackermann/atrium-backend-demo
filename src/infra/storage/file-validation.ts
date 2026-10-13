@@ -1,64 +1,60 @@
-import { lookup } from 'mime-types';
-import { ProblemException } from '@/common/http/problem';
+import { basename, extname } from 'node:path';
 
-export interface UploadRules {
-  /** Max size in bytes. */
-  maxBytes: number;
-  /** Allowed MIME types, e.g. ['application/pdf', 'image/png']. */
-  allowedMimeTypes: readonly string[];
-}
-
-/** The parts of a Multer file the validator needs (works with `Express.Multer.File`). */
-export interface UploadCandidate {
-  originalname: string;
-  mimetype: string;
-  size: number;
-  buffer?: Buffer;
-}
-
-export const MB = 1024 * 1024;
-
-/** Common presets for module uploads. */
-export const UploadPresets = {
-  documents: {
-    maxBytes: 10 * MB,
-    allowedMimeTypes: ['application/pdf', 'image/png', 'image/jpeg'],
-  },
-  images: { maxBytes: 5 * MB, allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'] },
-} as const satisfies Record<string, UploadRules>;
-
-const SIGNATURES: Record<string, (b: Buffer) => boolean> = {
-  'application/pdf': (b) => b.subarray(0, 5).toString('latin1') === '%PDF-',
-  'image/png': (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
-  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  'image/gif': (b) => b.subarray(0, 4).toString('latin1') === 'GIF8',
-  'image/webp': (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
-};
+export const MIME = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+} as const;
 
 /**
- * Returns validation messages for an upload (empty when valid): size, allowed type, the
- * extension matches the declared type, and - for known binary formats - the magic bytes.
+ * Detects the MIME type from magic bytes (never trusts the client). DOCX files are ZIP
+ * containers, so a ZIP signature is accepted as DOCX only with a `.docx` name and a
+ * `word/` entry.
  */
-export function checkUpload(file: UploadCandidate, rules: UploadRules): string[] {
-  const problems: string[] = [];
-  if (file.size <= 0) problems.push('The file is empty.');
-  if (file.size > rules.maxBytes) {
-    problems.push(`The file is too large (max ${Math.floor(rules.maxBytes / MB) || rules.maxBytes} MB).`);
+export function detectMimeType(content: Buffer, originalName: string): string | null {
+  if (content.length >= 5 && content.subarray(0, 5).toString('latin1') === '%PDF-') return MIME.pdf;
+  if (content.length >= 8 && content.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return MIME.png;
   }
-  if (!rules.allowedMimeTypes.includes(file.mimetype)) {
-    problems.push(`File type ${file.mimetype || 'unknown'} is not allowed. Allowed: ${rules.allowedMimeTypes.join(', ')}.`);
-    return problems;
+  if (content.length >= 3 && content[0] === 0xff && content[1] === 0xd8 && content[2] === 0xff) return MIME.jpeg;
+  if (
+    content.length >= 12 &&
+    content.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    content.subarray(8, 12).toString('latin1') === 'WEBP'
+  ) {
+    return MIME.webp;
   }
-  const byExtension = lookup(file.originalname);
-  if (byExtension !== file.mimetype) problems.push('The file extension does not match its type.');
-  const signature = SIGNATURES[file.mimetype];
-  if (signature && file.buffer && !signature(file.buffer)) problems.push('The file content does not match its type.');
-  return problems;
+  if (content.length >= 4 && content.subarray(0, 4).toString('latin1') === 'GIF8') return MIME.gif;
+  if (
+    content.length >= 4 &&
+    content.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])) &&
+    extname(originalName).toLowerCase() === '.docx' &&
+    content.includes(Buffer.from('word/'))
+  ) {
+    return MIME.docx;
+  }
+  return null;
 }
 
-/** Throws a 422 problem (`errors[field]`) when the upload breaks the rules. */
-export function assertValidUpload(file: UploadCandidate | undefined, rules: UploadRules, field = 'file'): void {
-  if (!file) throw ProblemException.validation({ [field]: ['Required'] });
-  const problems = checkUpload(file, rules);
-  if (problems.length) throw ProblemException.validation({ [field]: problems });
+/** Multipart parsers decode file names as latin1; recover UTF-8 names ("Ãœ" -> "Ü"). */
+export function decodeUploadFileName(name: string): string {
+  if (!/[\u0080-ÿ]/.test(name)) return name;
+  const utf8 = Buffer.from(name, 'latin1').toString('utf8');
+  return utf8.includes('�') ? name : utf8;
+}
+
+/** Strips path parts and control characters; max 200 characters (SPEC §4.1). */
+export function sanitizeFileName(name: string): string {
+  const base = basename(decodeUploadFileName(name).replace(/\\/g, '/'))
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .trim();
+  const safe = base && base !== '.' && base !== '..' ? base : 'file';
+  if (safe.length <= 200) return safe;
+  const ext = extname(safe).slice(0, 20);
+  return safe.slice(0, 200 - ext.length) + ext;
 }

@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import type { Job, QueueOptions } from 'pg-boss';
+import type { JobWithMetadata, QueueOptions } from 'pg-boss';
 
 export const JOB_HANDLER_METADATA = 'atrium:jobHandler';
 
@@ -17,8 +17,11 @@ export interface JobHandlerMetadata {
   options: JobHandlerOptions;
 }
 
-/** Signature of a method decorated with `@JobHandler()`. Throw to fail (and retry) the job. */
-export type JobHandlerFn<T = unknown> = (data: T, job: Job<T>) => Promise<unknown>;
+/**
+ * Signature of a method decorated with `@JobHandler()`. Throw to fail (and retry) the job;
+ * `job.retryCount` / `job.retryLimit` tell whether this is the last attempt.
+ */
+export type JobHandlerFn<T = unknown> = (data: T, job: JobWithMetadata<T>) => Promise<unknown>;
 
 /**
  * Registers a provider method as the worker for a pg-boss queue. The provider must be

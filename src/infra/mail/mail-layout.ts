@@ -1,4 +1,4 @@
-import { escapeHtml } from './mail-template';
+import { escapeHtml } from './mjml';
 
 export const MAIL_COLORS = {
   ink: '#1f2933',
@@ -6,10 +6,30 @@ export const MAIL_COLORS = {
   page: '#f3f4f6',
   card: '#ffffff',
   accent: '#3654d9',
+  danger: '#b42318',
 } as const;
 
-/** Wraps a template body in the shared Atrium layout: wordmark header, white card, demo footer. */
-export function renderLayout(input: { subject: string; preheader?: string; body: string }): string {
+export interface LayoutInput {
+  subject: string;
+  preheader?: string;
+  /** MJML fragment (mj-text, mj-table, ...) placed inside the card column. */
+  body: string;
+  /** Adds the "View in Atrium" button. */
+  action?: { label: string; url: string };
+  highPriority?: boolean;
+}
+
+/**
+ * Shared Atrium email layout: "Atrium" wordmark header, white card with the body and an
+ * optional action button, "Acme IT Services · demo" footer.
+ */
+export function renderLayout(input: LayoutInput): string {
+  const badge = input.highPriority
+    ? `<mj-text font-size="12px" font-weight="700" color="${MAIL_COLORS.danger}" padding="0 0 8px">HIGH PRIORITY</mj-text>`
+    : '';
+  const button = input.action
+    ? `<mj-button href="${escapeHtml(input.action.url)}">${escapeHtml(input.action.label)}</mj-button>`
+    : '';
   return `<mjml>
   <mj-head>
     <mj-title>${escapeHtml(input.subject)}</mj-title>
@@ -28,7 +48,9 @@ export function renderLayout(input: { subject: string; preheader?: string; body:
     </mj-section>
     <mj-section background-color="${MAIL_COLORS.card}" border-radius="10px" padding="20px 28px">
       <mj-column>
+        ${badge}
         ${input.body}
+        ${button}
       </mj-column>
     </mj-section>
     <mj-section padding="16px 24px 32px">

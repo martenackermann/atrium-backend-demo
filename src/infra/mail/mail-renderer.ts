@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import mjml2html from 'mjml';
-import { renderLayout } from './mail-layout';
-import type { MailTemplate } from './mail-template';
+import { type LayoutInput, renderLayout } from './mail-layout';
 
 export interface RenderedMail {
   subject: string;
@@ -9,11 +8,18 @@ export interface RenderedMail {
   text: string;
 }
 
-/** Very small HTML-to-text fallback for templates without an explicit `text()`. */
+/** Very small HTML-to-text fallback for the plain-text part. */
 export function htmlToText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<head[\s\S]*?<\/head>/gi, '')
+    .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, inner: string) => {
+      const label = inner
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return label && label !== href ? `${label} (${href})` : href;
+    })
     .replace(/<(br|\/p|\/div|\/tr|\/h\d)\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -27,12 +33,11 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
+/** Renders an MJML body inside the Atrium layout to HTML + text. */
 @Injectable()
 export class MailRenderer {
-  async render<T extends object>(template: MailTemplate<T>, data: T): Promise<RenderedMail> {
-    const subject = template.subject(data);
-    const source = renderLayout({ subject, preheader: template.preheader?.(data), body: template.body(data) });
-    const result = await mjml2html(source, { validationLevel: 'strict', keepComments: false });
-    return { subject, html: result.html, text: template.text?.(data) ?? htmlToText(result.html) };
+  async render(input: LayoutInput & { text?: string }): Promise<RenderedMail> {
+    const result = await mjml2html(renderLayout(input), { validationLevel: 'strict', keepComments: false });
+    return { subject: input.subject, html: result.html, text: input.text ?? htmlToText(result.html) };
   }
 }

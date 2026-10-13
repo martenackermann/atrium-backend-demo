@@ -3,18 +3,31 @@ import { ThrottlerException } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { Prisma } from '@/generated/prisma/client';
 import {
+  type ErrorCode,
   PROBLEM_CONTENT_TYPE,
   ProblemException,
   type ProblemDetails,
-  ProblemType,
   problemTypeUri,
   statusTitle,
 } from './problem';
 import { isZodErrorLike, zodIssuesToFieldErrors } from './zod-errors';
 
+const CODE_BY_STATUS: Record<number, ErrorCode> = {
+  400: 'validation_failed',
+  401: 'unauthenticated',
+  403: 'forbidden',
+  404: 'not_found',
+  405: 'not_found',
+  409: 'conflict',
+  413: 'payload_too_large',
+  415: 'unsupported_media_type',
+  422: 'validation_failed',
+  429: 'rate_limited',
+};
+
 /**
- * Turns every error into an RFC 9457 `application/problem+json` response.
- * Registered globally (APP_FILTER) in AppModule.
+ * Turns every error into an RFC 9457 `application/problem+json` response with `code` and
+ * `traceId` (API.md §2.4). No stack traces leave the server. Registered as APP_FILTER.
  */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
@@ -27,11 +40,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
     const problem = this.toProblem(exception);
     problem.instance = request.originalUrl?.split('?')[0] ?? request.url;
-    if (request.id !== undefined) problem.requestId = String(request.id);
+    if (request.id !== undefined) problem.traceId = String(request.id);
 
     if (problem.status >= 500) {
       this.logger.error(
-        { err: exception, requestId: problem.requestId },
+        { err: exception, traceId: problem.traceId },
         exception instanceof Error ? exception.message : 'Unhandled error',
       );
     }
@@ -42,12 +55,20 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
   toProblem(exception: unknown): ProblemDetails {
     if (exception instanceof ProblemException) {
-      const { status, type, title, detail, errors, extensions } = exception.problem;
-      return { type: problemTypeUri(type), title, status, detail, ...(errors ? { errors } : {}), ...extensions };
+      const { status, code, title, detail, errors, extensions } = exception.problem;
+      return {
+        type: problemTypeUri(code),
+        title,
+        status,
+        detail,
+        code,
+        ...(errors ? { errors } : {}),
+        ...extensions,
+      };
     }
 
     if (isZodErrorLike(exception)) {
-      return this.build(HttpStatus.UNPROCESSABLE_ENTITY, ProblemType.validation, {
+      return this.build(HttpStatus.UNPROCESSABLE_ENTITY, 'validation_failed', {
         title: 'Validation failed',
         detail: 'The request contains invalid data.',
         errors: zodIssuesToFieldErrors(exception.issues),
@@ -55,14 +76,17 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     }
 
     if (exception instanceof ThrottlerException) {
-      return this.build(HttpStatus.TOO_MANY_REQUESTS, ProblemType.rateLimited, {
+      return this.build(HttpStatus.TOO_MANY_REQUESTS, 'rate_limited', {
         detail: 'Too many requests. Please retry later.',
       });
     }
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
-      return this.build(status, this.slugForStatus(status), { detail: this.httpDetail(exception) });
+      const code = CODE_BY_STATUS[status] ?? (status >= 500 ? 'internal_error' : 'conflict');
+      return this.build(status, code, {
+        detail: status >= 500 ? 'An unexpected error occurred.' : this.httpDetail(exception),
+      });
     }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
@@ -70,18 +94,18 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       if (mapped) return mapped;
     }
 
-    return this.build(HttpStatus.INTERNAL_SERVER_ERROR, ProblemType.internal, {
+    return this.build(HttpStatus.INTERNAL_SERVER_ERROR, 'internal_error', {
       detail: 'An unexpected error occurred.',
     });
   }
 
   private build(
     status: number,
-    slug: string,
+    code: ErrorCode,
     extra: { title?: string; detail?: string; errors?: Record<string, string[]> },
   ): ProblemDetails {
     const { title, ...rest } = extra;
-    return { type: problemTypeUri(slug), title: title ?? statusTitle(status), status, ...rest };
+    return { type: problemTypeUri(code), title: title ?? statusTitle(status), status, code, ...rest };
   }
 
   private httpDetail(exception: HttpException): string | undefined {
@@ -95,47 +119,20 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     return exception.message;
   }
 
-  private slugForStatus(status: number): string {
-    switch (status) {
-      case 400:
-        return ProblemType.badRequest;
-      case 401:
-        return ProblemType.unauthorized;
-      case 403:
-        return ProblemType.forbidden;
-      case 404:
-        return ProblemType.notFound;
-      case 409:
-        return ProblemType.conflict;
-      case 410:
-        return ProblemType.gone;
-      case 413:
-        return ProblemType.payloadTooLarge;
-      case 422:
-        return ProblemType.validation;
-      case 429:
-        return ProblemType.rateLimited;
-      case 503:
-        return ProblemType.serviceUnavailable;
-      default:
-        return status >= 500 ? ProblemType.internal : ProblemType.http;
-    }
-  }
-
   private fromPrisma(error: Prisma.PrismaClientKnownRequestError): ProblemDetails | undefined {
     switch (error.code) {
       case 'P2025': // record required but not found
-        return this.build(HttpStatus.NOT_FOUND, ProblemType.notFound, { detail: 'Resource not found.' });
+        return this.build(HttpStatus.NOT_FOUND, 'not_found', { detail: 'Resource not found.' });
       case 'P2002': {
         // unique constraint
         const target = (error.meta?.target as string[] | string | undefined) ?? [];
         const fields = Array.isArray(target) ? target : [target];
-        return this.build(HttpStatus.CONFLICT, ProblemType.conflict, {
+        return this.build(HttpStatus.CONFLICT, 'conflict', {
           detail: fields.length ? `A record with this ${fields.join(', ')} already exists.` : 'Duplicate record.',
         });
       }
       case 'P2003': // foreign key
-        return this.build(HttpStatus.CONFLICT, ProblemType.conflict, {
+        return this.build(HttpStatus.CONFLICT, 'conflict', {
           detail: 'The operation conflicts with related records.',
         });
       default:

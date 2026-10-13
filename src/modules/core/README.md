@@ -1,24 +1,22 @@
 # Core module (`src/modules/core`)
 
-**Status:** empty shell (phase 2a). Filled by **the foundation (phase 2b)**.
+**Owner:** foundation. Implements the core API (API.md §3): auth and demo personas, `/me`,
+users and org, approver chains, deputies, inbox/search aggregation, notifications, attachments
+and signed files, meta (enums, config, workflows), audit log, user/role admin and the job runner.
 
-**Scope (to be detailed from `_spec/atrium/SPEC.md` / `API.md`):** users, org units, roles/personas, login, inbox and notification fan-out.
+It also provides what every slice builds on (see `CONVENTIONS.md` §1):
 
-## Owned files
+| Folder           | Slice-facing API                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------------------- |
+| `approvals/`     | `ApprovalService` - approver resolution (SPEC §6.1), `canDecide` (§6.2), deputies, reporting trees  |
+| `workflow/`      | `defineWorkflow`, `WorkflowService` (`availableActions`, `apply`), `workflowActions`, `lockRow`     |
+| `contracts/`     | `InboxProvider`, `SearchProvider`, `MyDayContributor`, `AttachmentPolicy` + registration decorators |
+| `notifications/` | `defineNotification`, `NotificationService.send` (email outbox + in-app)                            |
+| `attachments/`   | `AttachmentService` (`link`, `listFor`, `downloadUrl`)                                              |
+| `audit/`         | `AuditService` (`record`, `diff`, `timeline`), `AuditLabelRegistry`                                 |
+| `meta/`          | `CoreExtensionsModule.forFeature({ enums, workflows, auditLabels })`, `enumOptions`                 |
+| `jobs/`          | `@ScheduledJob` (cron + manual run + `job_runs`)                                                    |
+| `seed/`          | core seed (52 users, personas, deputies) and the pure org plan used by `seed:export-users`          |
 
-- `src/modules/core/**` - controllers, services, DTOs, machines, abilities, jobs, mail templates, seeders, tests
-- `prisma/schema/core.prisma` - this module's Prisma models
-
-Anything outside these paths is shared. Change it only through the registries documented in
-`CONVENTIONS.md` (seeders list, AppModule import), or ask the foundation owner.
-
-## Layout
-
-```
-src/modules/core/
-  core.module.ts
-  controllers/   services/   dto/   machines/   abilities/
-  jobs/          mail/       seed/
-```
-
-See `CONVENTIONS.md` for patterns (DTOs, pagination, workflow actions, jobs, mail, tests).
+Feature folders replace the generic `controllers/ services/ dto/` layout here because core is larger
+than a slice.

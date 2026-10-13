@@ -1,66 +1,44 @@
 import { createHash, createHmac } from 'node:crypto';
 import { createReadStream, type ReadStream } from 'node:fs';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
-import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { Injectable } from '@nestjs/common';
-import { extension as extensionForMime } from 'mime-types';
-import { nanoid } from 'nanoid';
-import { ProblemException } from '@/common/http/problem';
+import { v7 as uuidv7 } from 'uuid';
 import { AppConfig } from '@/config/app-config';
-import { createSignedToken, type SignedFilePayload, verifySignedToken } from './signed-url';
+import { createSignedToken, verifySignedToken } from './signed-url';
 
-export interface StoredFile {
-  /** Opaque storage key, e.g. "2026/10/V1StGXR8_Z5jdHi6B-myT.pdf". Persist this. */
+export interface StoredBlob {
+  /** `yyyy/mm/<uuid>` - opaque, never derived from the file name. Persist this. */
   key: string;
-  size: number;
-  mimeType: string;
-  originalName: string;
+  sizeBytes: number;
   /** Hex SHA-256 of the content. */
   sha256: string;
 }
 
-export interface DownloadUrlOptions {
-  /** Lifetime in seconds. Default 300 (5 min). */
-  expiresInSeconds?: number;
-  /** File name presented to the browser. */
-  fileName?: string;
-  mimeType?: string;
-  disposition?: 'inline' | 'attachment';
-}
-
-const KEY_PATTERN = /^\d{4}\/\d{2}\/[\w-]{21}(\.[a-z0-9]{1,10})?$/;
-export const FILES_ROUTE = 'files';
+const KEY_PATTERN = /^\d{4}\/\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
- * Local-disk file storage under STORAGE_DIR with random names, plus HMAC-signed,
- * expiring download URLs served by `GET /api/v1/files/:token`.
+ * Private local-disk blob storage under STORAGE_DIR (outside any web root) plus HMAC-signed,
+ * expiring tokens (FILE_SIGNING_SECRET). Attachment metadata and access rules live in the
+ * core AttachmentService; modules use that, not this service.
  */
 @Injectable()
 export class StorageService {
   readonly root: string;
   private readonly signingKey: Buffer;
 
-  constructor(private readonly config: AppConfig) {
+  constructor(config: AppConfig) {
     this.root = resolve(config.get('STORAGE_DIR'));
-    this.signingKey = createHmac('sha256', config.get('JWT_SECRET')).update('atrium:storage:signed-url').digest();
+    this.signingKey = createHmac('sha256', config.get('FILE_SIGNING_SECRET')).update('atrium:file-url').digest();
   }
 
-  /** Writes a file and returns its metadata. Validate first with `assertValidUpload()`. */
-  async save(content: Buffer, meta: { originalName: string; mimeType: string }): Promise<StoredFile> {
-    const now = new Date();
-    const ext = (extname(meta.originalName).slice(1) || extensionForMime(meta.mimeType) || '').toLowerCase();
-    const safeExt = /^[a-z0-9]{1,10}$/.test(ext) ? `.${ext}` : '';
-    const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${nanoid()}${safeExt}`;
+  /** Writes a new blob under a random key (never overwrites). */
+  async save(content: Buffer, now = new Date()): Promise<StoredBlob> {
+    const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${uuidv7()}`;
     const path = this.pathFor(key);
-    await mkdir(join(path, '..'), { recursive: true });
+    await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content, { flag: 'wx' });
-    return {
-      key,
-      size: content.length,
-      mimeType: meta.mimeType,
-      originalName: meta.originalName,
-      sha256: createHash('sha256').update(content).digest('hex'),
-    };
+    return { key, sizeBytes: content.length, sha256: createHash('sha256').update(content).digest('hex') };
   }
 
   async exists(key: string): Promise<boolean> {
@@ -71,6 +49,10 @@ export class StorageService {
     }
   }
 
+  read(key: string): Promise<Buffer> {
+    return readFile(this.pathFor(key));
+  }
+
   openRead(key: string): ReadStream {
     return createReadStream(this.pathFor(key));
   }
@@ -79,43 +61,29 @@ export class StorageService {
     await rm(this.pathFor(key), { force: true });
   }
 
-  /** Absolute download URL valid for `expiresInSeconds`. Hand it to the client as is. */
-  createDownloadUrl(key: string, options: DownloadUrlOptions = {}): string {
-    return `${this.config.get('APP_URL')}/api/v1/${FILES_ROUTE}/${this.createDownloadToken(key, options)}`;
-  }
-
-  createDownloadToken(key: string, options: DownloadUrlOptions = {}): string {
-    this.assertKey(key);
-    const payload: SignedFilePayload = {
-      k: key,
-      e: Math.floor(Date.now() / 1000) + (options.expiresInSeconds ?? 300),
-      ...(options.fileName ? { n: options.fileName } : {}),
-      ...(options.mimeType ? { t: options.mimeType } : {}),
-      ...(options.disposition ? { d: options.disposition } : {}),
+  /** Signs an arbitrary JSON payload with an expiry (unix seconds in `e`). */
+  sign<T extends object>(payload: T, ttlSeconds: number, now = Date.now()): { token: string; expiresAt: Date } {
+    const expiresAt = new Date(now + ttlSeconds * 1000);
+    return {
+      token: createSignedToken(this.signingKey, { ...payload, e: Math.floor(expiresAt.getTime() / 1000) }),
+      expiresAt,
     };
-    return createSignedToken(this.signingKey, payload);
   }
 
-  /** Verifies a download token or throws a problem (403 invalid / 410 expired). */
-  verifyDownloadToken(token: string): SignedFilePayload {
+  /** Returns the payload of a valid, unexpired token, else null. */
+  verify<T extends object>(token: string): (T & { e: number }) | null {
     const result = verifySignedToken(this.signingKey, token);
-    if (result.ok) return result.payload;
-    if (result.reason === 'expired') throw ProblemException.gone('This download link has expired.');
-    throw ProblemException.forbidden('This download link is invalid.');
+    return result.ok ? (result.payload as T & { e: number }) : null;
   }
 
   /** Resolves a key inside STORAGE_DIR; rejects anything that could escape it. */
   pathFor(key: string): string {
-    this.assertKey(key);
+    if (!KEY_PATTERN.test(key)) throw new Error(`Invalid storage key "${key}"`);
     const path = resolve(this.root, ...key.split('/'));
     const rel = relative(this.root, path);
     if (!rel || rel.startsWith('..') || isAbsolute(rel) || rel.split(sep).includes('..')) {
       throw new Error(`Invalid storage key "${key}"`);
     }
     return path;
-  }
-
-  private assertKey(key: string): void {
-    if (!KEY_PATTERN.test(key)) throw new Error(`Invalid storage key "${key}"`);
   }
 }

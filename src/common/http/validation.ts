@@ -12,5 +12,5 @@ export const AppValidationPipe = createZodValidationPipe({
   createValidationException: (error: unknown) =>
     isZodErrorLike(error)
       ? ProblemException.validation(zodIssuesToFieldErrors(error.issues))
-      : ProblemException.badRequest('Invalid request.'),
+      : ProblemException.validation({ _root: ['Invalid request.'] }),
 });

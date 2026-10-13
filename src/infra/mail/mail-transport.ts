@@ -9,9 +9,11 @@ export interface OutgoingMail {
   subject: string;
   html: string;
   text: string;
+  highPriority?: boolean;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }
 
-/** Nodemailer SMTP transport (Mailpit in development: localhost:1025). */
+/** Nodemailer SMTP transport (Mailpit in development: 127.0.0.1:1025). */
 @Injectable()
 export class MailTransport implements OnModuleDestroy {
   private readonly transporter: Transporter;
@@ -22,8 +24,22 @@ export class MailTransport implements OnModuleDestroy {
   }
 
   async deliver(mail: OutgoingMail): Promise<string> {
-    const info = await this.transporter.sendMail({ from: this.config.get('MAIL_FROM'), ...mail });
+    const { highPriority, ...rest } = mail;
+    const info = await this.transporter.sendMail({
+      from: this.config.get('MAIL_FROM'),
+      ...rest,
+      ...(highPriority ? { priority: 'high' as const, headers: { 'X-Priority': '1' } } : {}),
+    });
     return String(info.messageId);
+  }
+
+  /** SMTP reachability for the health endpoint. */
+  async verify(): Promise<boolean> {
+    try {
+      return await this.transporter.verify();
+    } catch {
+      return false;
+    }
   }
 
   onModuleDestroy(): void {

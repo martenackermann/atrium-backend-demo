@@ -1,6 +1,13 @@
 import { BeforeApplicationShutdown, Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
-import { fromPrisma, type JobSpyInterface, PgBoss, type QueueOptions, type SendOptions } from 'pg-boss';
+import {
+  fromPrisma,
+  type JobSpyInterface,
+  type JobWithMetadata,
+  PgBoss,
+  type QueueOptions,
+  type SendOptions,
+} from 'pg-boss';
 import { AppConfig } from '@/config/app-config';
 import { PG_BOSS_SCHEMA } from './queue.constants';
 import type { PrismaTx } from '@/database/prisma.types';
@@ -59,7 +66,7 @@ export class QueueService implements OnModuleInit, OnApplicationBootstrap, Befor
         const method = (instance as Record<string, unknown>)[methodName];
         if (typeof method !== 'function') continue;
         const meta = this.reflector.get<JobHandlerMetadata | undefined>(JOB_HANDLER_METADATA, method);
-        if (meta) await this.registerWorker(meta, (method as JobHandlerFn).bind(instance));
+        if (meta) await this.work(meta, (method as JobHandlerFn).bind(instance));
       }
     }
   }
@@ -106,7 +113,8 @@ export class QueueService implements OnModuleInit, OnApplicationBootstrap, Befor
     return [...this.handlerNames];
   }
 
-  private async registerWorker(meta: JobHandlerMetadata, handler: JobHandlerFn): Promise<void> {
+  /** Registers a worker programmatically (prefer `@JobHandler`). One worker per queue name. */
+  async work(meta: JobHandlerMetadata, handler: JobHandlerFn): Promise<void> {
     if (this.handlerNames.has(meta.name)) {
       throw new Error(`Duplicate @JobHandler for queue "${meta.name}"`);
     }
@@ -116,12 +124,13 @@ export class QueueService implements OnModuleInit, OnApplicationBootstrap, Befor
       meta.name,
       {
         batchSize: 1,
+        includeMetadata: true,
         pollingIntervalSeconds: meta.options.pollingIntervalSeconds ?? (this.config.isTest ? 0.5 : 2),
         localConcurrency: meta.options.localConcurrency ?? 1,
       },
       async ([job]) => {
         if (!job) return;
-        await handler(job.data, job);
+        await handler(job.data, job as JobWithMetadata<unknown>);
       },
     );
     this.logger.log(`Worker registered for queue "${meta.name}"`);

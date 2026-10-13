@@ -10,7 +10,7 @@ import type { AuthUser } from './auth-user';
 export const CurrentUser = createParamDecorator(
   (options: { optional?: boolean } | undefined, ctx: ExecutionContext): AuthUser | undefined => {
     const user = ctx.switchToHttp().getRequest<Request>().user;
-    if (!user && !options?.optional) throw ProblemException.unauthorized();
+    if (!user && !options?.optional) throw ProblemException.unauthenticated();
     return user;
   },
 );

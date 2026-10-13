@@ -1,34 +1,3 @@
-import type { z } from 'zod';
-
-/**
- * A transactional email. `body` returns an MJML fragment placed inside the Atrium layout
- * (header wordmark + footer), i.e. `<mj-text>`, `<mj-button>`, `<mj-table>`... elements.
- * Build fragments with the `mjml` tagged template so interpolated values are escaped.
- */
-export interface MailTemplate<T extends object = Record<string, unknown>> {
-  /** Unique name `<module>.<purpose>`, e.g. `training.request-approved`. */
-  name: string;
-  description?: string;
-  /** Optional schema; data is validated when the mail is queued. */
-  schema?: z.ZodType<T>;
-  subject: (data: T) => string;
-  /** Inbox preview line. */
-  preheader?: (data: T) => string;
-  body: (data: T) => string;
-  /** Plain-text alternative; derived from the HTML when omitted. */
-  text?: (data: T) => string;
-  /** Sample data used by the dev preview route and tests. */
-  preview: T;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyMailTemplate = MailTemplate<any>;
-
-/** Identity helper that gives templates full type inference. */
-export function defineMailTemplate<T extends object>(template: MailTemplate<T>): MailTemplate<T> {
-  return template;
-}
-
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 function toText(value: unknown): string {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PER_PAGE_DEFAULT = 20;
+export const PER_PAGE_DEFAULT = 25;
 export const PER_PAGE_MAX = 100;
 
 /** `?page=&perPage=` - extend it with filters and `sort` in a module's list-query DTO. */

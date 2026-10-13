@@ -15,8 +15,8 @@ export type AppAction = 'manage' | 'create' | 'read' | 'update' | 'delete' | (st
  */
 export type AppSubjectType = Prisma.ModelName | 'all' | (string & {});
 
-/** A subject instance: a Prisma row tagged with `subject('TrainingRequest', row)`. */
-export type AppSubjectInstance = Model<Record<string, unknown>, Prisma.ModelName>;
+/** A subject instance: a Prisma row tagged with `subject('TrainingRequest', row)` (one member per model). */
+export type AppSubjectInstance = { [K in Prisma.ModelName]: Model<Record<string, unknown>, K> }[Prisma.ModelName];
 
 export type AppSubject = AppSubjectType | AppSubjectInstance;
 
