@@ -1,0 +1,298 @@
+// =============================================================================
+// Travel module (slice A2): car / train / flight requests, approvals, desk
+// booking with confirmations + encrypted PIN, cancellation, car-class catalogue.
+// SPEC §4.3, §5.2, §6.3; SPEC_RESOLUTIONS #2, #9, #11, #24.
+// =============================================================================
+
+enum TravelKind {
+  car
+  train
+  flight
+
+  @@map("travel_kind")
+}
+
+enum TravelStatus {
+  pending_approval
+  to_book
+  booked
+  declined
+  booking_impossible
+  cancellation_requested
+  cancelled
+
+  @@map("travel_status")
+}
+
+/// SPEC §6.3 reason codes, stored in evaluation order.
+enum TravelApprovalReason {
+  vehicle_class_upgrade
+  car_estate
+  car_automatic_preferred
+  car_automatic_required
+  car_diesel
+  car_foreign_travel
+  car_delivery
+  car_collection
+  train_saver_fare
+  train_separate_tickets
+  flight
+
+  @@map("travel_approval_reason")
+}
+
+enum TravelApprovalExemption {
+  executive_traveller
+
+  @@map("travel_approval_exemption")
+}
+
+enum TravelApproverSelection {
+  auto
+  manual
+
+  @@map("travel_approver_selection")
+}
+
+enum TravelVehicleType {
+  car
+  van
+
+  @@map("travel_vehicle_type")
+}
+
+enum TravelHandoverMode {
+  branch
+  delivery
+
+  @@map("travel_handover_mode")
+}
+
+enum TravelDropOffMode {
+  branch
+  collection
+
+  @@map("travel_drop_off_mode")
+}
+
+enum TravelTripType {
+  one_way
+  return
+
+  @@map("travel_trip_type")
+}
+
+enum TravelFareType {
+  saver
+  flex
+
+  @@map("travel_fare_type")
+}
+
+/// A travel request (reference `TRV-000045`). Never edited after submission (D15).
+model TravelRequest {
+  id                       String                   @id @default(uuid(7)) @db.Uuid
+  number                   Int                      @unique @default(autoincrement())
+  kind                     TravelKind
+  travellerId              String                   @map("traveller_id") @db.Uuid
+  requesterId              String                   @map("requester_id") @db.Uuid
+  /// Set when needsApproval.
+  approverId               String?                  @map("approver_id") @db.Uuid
+  approverSelection        TravelApproverSelection? @map("approver_selection")
+  approverReason           ApproverReason?          @map("approver_reason")
+  /// First site manager skipped by approver resolution (SPEC_RESOLUTIONS #2).
+  escalatedFromId          String?                  @map("escalated_from_id") @db.Uuid
+  status                   TravelStatus
+  needsApproval            Boolean                  @map("needs_approval")
+  approvalReasons          TravelApprovalReason[]   @map("approval_reasons")
+  approvalExemption        TravelApprovalExemption? @map("approval_exemption")
+  /// Denormalised from the detail (pickup / outbound).
+  startsAt                 DateTime                 @map("starts_at") @db.Timestamptz(3)
+  /// Denormalised (return / drop-off); null for one-way trips.
+  endsAt                   DateTime?                @map("ends_at") @db.Timestamptz(3)
+  /// API `route`, computed at create (SPEC_RESOLUTIONS #9).
+  routeSummary             String                   @map("route_summary")
+  costCenterId             String                   @map("cost_center_id") @db.Uuid
+  costCenterReason         String?                  @map("cost_center_reason")
+  rechargeCustomer         String?                  @map("recharge_customer")
+  rechargeProjectNumber    String?                  @map("recharge_project_number")
+  comment                  String?
+  statusBeforeCancellation TravelStatus?            @map("status_before_cancellation")
+  /// Decision of the approval step (approve or decline), exposed as API `approval`.
+  approvedAt               DateTime?                @map("approved_at") @db.Timestamptz(3)
+  approvedById             String?                  @map("approved_by_id") @db.Uuid
+  approvalActingAs         ActingAs?                @map("approval_acting_as")
+  approvalComment          String?                  @map("approval_comment")
+  approvalAutoApproval     AutoApproval?            @map("approval_auto_approval")
+  declinedAt               DateTime?                @map("declined_at") @db.Timestamptz(3)
+  declinedById             String?                  @map("declined_by_id") @db.Uuid
+  declinedActingAs         ActingAs?                @map("declined_acting_as")
+  declineReason            String?                  @map("decline_reason")
+  bookingImpossibleReason  String?                  @map("booking_impossible_reason")
+  cancellationRequestedAt  DateTime?                @map("cancellation_requested_at") @db.Timestamptz(3)
+  cancellationReason       String?                  @map("cancellation_reason")
+  cancelledAt              DateTime?                @map("cancelled_at") @db.Timestamptz(3)
+  version                  Int                      @default(1)
+  createdAt                DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  traveller     User       @relation("TravelRequestTraveller", fields: [travellerId], references: [id])
+  requester     User       @relation("TravelRequestRequester", fields: [requesterId], references: [id])
+  approver      User?      @relation("TravelRequestApprover", fields: [approverId], references: [id])
+  escalatedFrom User?      @relation("TravelRequestEscalatedFrom", fields: [escalatedFromId], references: [id])
+  approvedBy    User?      @relation("TravelRequestApprovedBy", fields: [approvedById], references: [id])
+  declinedBy    User?      @relation("TravelRequestDeclinedBy", fields: [declinedById], references: [id])
+  costCenter    CostCenter @relation("TravelRequestCostCenter", fields: [costCenterId], references: [id])
+
+  car        TravelCarDetail?
+  train      TravelTrainDetail?
+  flight     TravelFlightDetail?
+  companions TravelTrainCompanion[]
+  booking    TravelBooking?
+
+  @@index([travellerId, status])
+  @@index([approverId, status])
+  @@index([status, startsAt])
+  @@index([requesterId])
+  @@map("travel_requests")
+}
+
+model TravelCarDetail {
+  requestId              String             @id @map("request_id") @db.Uuid
+  vehicleType            TravelVehicleType  @map("vehicle_type")
+  carClassId             String             @map("car_class_id") @db.Uuid
+  pickupAt               DateTime           @map("pickup_at") @db.Timestamptz(3)
+  returnAt               DateTime           @map("return_at") @db.Timestamptz(3)
+  /// SPEC_RESOLUTIONS #9: required destination (<= 120).
+  destination            String
+  estate                 Boolean            @default(false)
+  navigation             Boolean            @default(false)
+  automaticPreferred     Boolean            @default(false) @map("automatic_preferred")
+  automaticRequired      Boolean            @default(false) @map("automatic_required")
+  diesel                 Boolean            @default(false)
+  winterTyres            Boolean            @default(false) @map("winter_tyres")
+  foreignTravel          Boolean            @default(false) @map("foreign_travel")
+  childSeat              Boolean            @default(false) @map("child_seat")
+  /// ISO 3166-1 alpha-2 codes; non-empty when foreignTravel.
+  foreignCountries       String[]           @map("foreign_countries")
+  expectedKmPerDay       Int?               @map("expected_km_per_day")
+  /// Vans only.
+  minPayloadKg           Int?               @map("min_payload_kg")
+  handoverMode           TravelHandoverMode @map("handover_mode")
+  handoverBranch         String?            @map("handover_branch")
+  handoverStreet         String?            @map("handover_street")
+  handoverHouseNumber    String?            @map("handover_house_number")
+  handoverPostalCode     String?            @map("handover_postal_code")
+  handoverCity           String?            @map("handover_city")
+  handoverCountryCode    String?            @map("handover_country_code")
+  dropOffMode            TravelDropOffMode  @map("drop_off_mode")
+  dropOffBranch          String?            @map("drop_off_branch")
+  dropOffStreet          String?            @map("drop_off_street")
+  dropOffHouseNumber     String?            @map("drop_off_house_number")
+  dropOffPostalCode      String?            @map("drop_off_postal_code")
+  dropOffCity            String?            @map("drop_off_city")
+  dropOffCountryCode     String?            @map("drop_off_country_code")
+  driverFirstName        String             @map("driver_first_name")
+  driverLastName         String             @map("driver_last_name")
+  driverEmail            String             @map("driver_email")
+  driverPhone            String             @map("driver_phone")
+  driverBirthDate        DateTime           @map("driver_birth_date") @db.Date
+  driverLicenceNumber    String?            @map("driver_licence_number")
+  additionalDrivers      String?            @map("additional_drivers")
+  specialEquipmentReason String?            @map("special_equipment_reason")
+
+  request  TravelRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  carClass CarRentalClass @relation(fields: [carClassId], references: [id])
+
+  @@index([carClassId])
+  @@map("travel_car_details")
+}
+
+model TravelTrainDetail {
+  requestId            String         @id @map("request_id") @db.Uuid
+  tripType             TravelTripType @map("trip_type")
+  outboundAt           DateTime       @map("outbound_at") @db.Timestamptz(3)
+  returnAt             DateTime?      @map("return_at") @db.Timestamptz(3)
+  fromStation          String         @map("from_station")
+  viaStation           String?        @map("via_station")
+  toStation            String         @map("to_station")
+  fareType             TravelFareType @map("fare_type")
+  seatReservations     Int            @default(0) @map("seat_reservations")
+  separateTickets      Boolean        @default(false) @map("separate_tickets")
+  localTransportTicket Boolean        @default(false) @map("local_transport_ticket")
+  notes                String?
+
+  request TravelRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("travel_train_details")
+}
+
+/// Colleagues travelling on the same train booking (max 5, never the traveller).
+model TravelTrainCompanion {
+  requestId String @map("request_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  /// Display order.
+  position  Int    @default(0)
+
+  request TravelRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User          @relation("TravelTrainCompanionUser", fields: [userId], references: [id])
+
+  @@id([requestId, userId])
+  @@index([userId])
+  @@map("travel_train_companions")
+}
+
+model TravelFlightDetail {
+  requestId           String         @id @map("request_id") @db.Uuid
+  tripType            TravelTripType @map("trip_type")
+  outboundDepartureAt DateTime       @map("outbound_departure_at") @db.Timestamptz(3)
+  outboundFrom        String         @map("outbound_from")
+  outboundTo          String         @map("outbound_to")
+  returnDepartureAt   DateTime?      @map("return_departure_at") @db.Timestamptz(3)
+  returnFrom          String?        @map("return_from")
+  returnTo            String?        @map("return_to")
+  handLuggageOnly     Boolean        @default(false) @map("hand_luggage_only")
+  notes               String?
+
+  request TravelRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("travel_flight_details")
+}
+
+/// Desk booking. Confirmation PDFs are attachments with entityType 'travel_booking', entityId = requestId.
+model TravelBooking {
+  requestId     String   @id @map("request_id") @db.Uuid
+  bookingNumber String   @map("booking_number")
+  /// AES-256-GCM (D12) - never serialised, never emailed.
+  pinEncrypted  String?  @map("pin_encrypted")
+  comment       String?
+  bookedById    String   @map("booked_by_id") @db.Uuid
+  bookedAt      DateTime @map("booked_at") @db.Timestamptz(3)
+
+  request  TravelRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  bookedBy User          @relation("TravelBookingBookedBy", fields: [bookedById], references: [id])
+
+  @@map("travel_bookings")
+}
+
+/// Car-rental class catalogue. One default ("Standard") per vehicle type (service-enforced;
+/// the migration adds a partial unique index).
+model CarRentalClass {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  /// 4-letter, industry-style code, e.g. ECMR
+  code          String            @unique
+  name          String
+  description   String?
+  exampleModels String?           @map("example_models")
+  vehicleType   TravelVehicleType @map("vehicle_type")
+  isDefault     Boolean           @default(false) @map("is_default")
+  sortOrder     Int               @default(0) @map("sort_order")
+  active        Boolean           @default(true)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  carDetails TravelCarDetail[]
+
+  @@index([vehicleType, sortOrder])
+  @@map("car_rental_classes")
+}
