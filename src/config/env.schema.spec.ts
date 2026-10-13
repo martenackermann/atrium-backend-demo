@@ -64,6 +64,6 @@ describe('HTTP settings', () => {
     expect(env({}).TRUST_PROXY).toBe('loopback');
     expect(env({ TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
     expect(env({ TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
-    expect(env({ TRUST_PROXY: 'loopback, 10.0.0.0/8' }).TRUST_PROXY).toBe('loopback, 10.0.0.0/8');
+    expect(env({ TRUST_PROXY: 'loopback, uniquelocal' }).TRUST_PROXY).toBe('loopback, uniquelocal');
   });
 });

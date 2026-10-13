@@ -15,7 +15,7 @@ const int = (fallback: number, min = 0) => z.coerce.number().int().min(min).defa
 const cron = (fallback: string) => z.string().trim().min(9).default(fallback);
 /**
  * Express `trust proxy`: "false", "true", a hop count ("1") or comma-separated addresses/subnets
- * ("loopback", "10.0.0.0/8"). Only trusted proxies may set X-Forwarded-For, which decides the
+ * ("loopback", "uniquelocal"). Only trusted proxies may set X-Forwarded-For, which decides the
  * client IP of the login rate limit.
  */
 const trustProxy = z
