@@ -22,7 +22,17 @@ describe('news body sanitiser (SPEC §4.6 allowlist)', () => {
       '<a href="https://wiki.example.com" rel="noopener noreferrer" target="_blank">w</a>',
     );
     expect(sanitizeNewsHtml('<a href="mailto:people-ops@example.com">m</a>')).toContain('href="mailto:');
-    for (const bad of ['javascript:alert(1)', 'http://plain.example.com', '//evil.example.com', 'data:text/html,x']) {
+    for (const bad of [
+      'javascript:alert(1)',
+      '&#x6A;avascript:alert(1)',
+      'java\tscript:alert(1)',
+      'http://plain.example.com',
+      '//evil.example.com',
+      'data:text/html,x',
+      '/api/v1/admin/users',
+      '#top',
+      'relative-page',
+    ]) {
       expect(sanitizeNewsHtml(`<p><a href="${bad}">text</a> and <a href="https://ok.example.com">ok</a></p>`)).toBe(
         '<p>text and <a href="https://ok.example.com" rel="noopener noreferrer" target="_blank">ok</a></p>',
       );

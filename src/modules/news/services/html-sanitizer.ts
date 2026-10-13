@@ -5,6 +5,8 @@ import sanitizeHtml from 'sanitize-html';
  * blockquote code pre br`. Links get `rel="noopener noreferrer" target="_blank"`.
  * Everything else (scripts, styles, event handlers, images, other schemes) is removed.
  */
+const SAFE_HREF = /^(https:\/\/|mailto:)/i;
+
 const OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: ['p', 'h2', 'h3', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'blockquote', 'code', 'pre', 'br'],
   allowedAttributes: { a: ['href', 'rel', 'target'] },
@@ -22,10 +24,15 @@ const OPTIONS: sanitizeHtml.IOptions = {
     h4: 'h3',
     h5: 'h3',
     h6: 'h3',
-    a: (tagName, attribs): sanitizeHtml.Tag => ({
-      tagName,
-      attribs: { ...(attribs.href ? { href: attribs.href.trim() } : {}), rel: 'noopener noreferrer', target: '_blank' },
-    }),
+    a: (tagName, attribs): sanitizeHtml.Tag => {
+      // allowedSchemes does not cover scheme-less hrefs ("/api/v1/...", "#x", "page"): keep
+      // absolute https and mailto links only (SPEC §4.6); the rest is unwrapped to text below.
+      const href = attribs.href?.trim();
+      return {
+        tagName,
+        attribs: { ...(href && SAFE_HREF.test(href) ? { href } : {}), rel: 'noopener noreferrer', target: '_blank' },
+      };
+    },
   },
   nonTextTags: ['script', 'style', 'textarea', 'option', 'noscript', 'iframe', 'object'],
 };
