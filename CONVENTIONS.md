@@ -393,3 +393,11 @@ test/                            e2e tests + support (test app, fixtures, per-ru
   destructive schema changes - then recreate your dev database by hand), migrations are generated
   read-only with `db:migration:new`.
 - `SMTP_HOST` defaults to `127.0.0.1` (nodemailer resolves names via DNS, not the hosts file).
+- Workflow audit metadata (integration): `apply()` stores `input.comment` as `metadata.comment` when
+  the body has no `reason`, and merges the definition's optional `auditMetadata` hook (e.g.
+  `{ onBehalfOfName }` for deputy decisions). Timelines show the comment as the entry's quoted text.
+- `/files/{token}` sends `Cross-Origin-Resource-Policy: cross-origin` (the signed token is the guard),
+  so the SPA can embed files from another origin.
+- The SMTP health probe has a 5 s timeout and reuses a successful check for 60 s.
+- `POST /auth/demo-login` (DEMO_MODE, no secret) is limited to 10 x `LOGIN_RATE_LIMIT`; password
+  login keeps `LOGIN_RATE_LIMIT`.

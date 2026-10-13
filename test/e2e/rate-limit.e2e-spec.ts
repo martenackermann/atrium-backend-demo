@@ -23,6 +23,12 @@ describe('login rate limit (LOGIN_RATE_LIMIT per 15 min per email + IP)', () => 
     expect(res.headers['retry-after']).toBeDefined();
   });
 
+  it('gives the secret-less demo login 10x the limit (long demo and e2e sessions)', async () => {
+    const demo = () => t.http().post('/api/v1/auth/demo-login').send({ personaKey: 'emma' });
+    for (let i = 0; i < 30; i++) expect((await demo()).status).not.toBe(429); // no seed: 404, never 429
+    expect((await demo().expect(429)).body.code).toBe('rate_limited');
+  });
+
   it('tracks emails separately and leaves other routes alone', async () => {
     await t.http().post('/api/v1/auth/login').send({ email: 'someone-else@example.com', password: 'x' }).expect(401);
     for (let i = 0; i < 5; i++) await t.http().get('/api/v1/health').expect(200);

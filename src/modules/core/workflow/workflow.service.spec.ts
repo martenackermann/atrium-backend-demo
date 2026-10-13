@@ -188,7 +188,11 @@ describe('WorkflowService (toy request machine)', () => {
         ability: abilityFor(approver),
         input: { comment: 'Enjoy the course' },
       });
-      expect(t.audit().at(-1)).toMatchObject({ action: 'approve', reason: null, metadata: { comment: 'Enjoy the course' } });
+      expect(t.audit().at(-1)).toMatchObject({
+        action: 'approve',
+        reason: null,
+        metadata: { comment: 'Enjoy the course' },
+      });
       expect(result.toState).toBe('approved');
     });
 
