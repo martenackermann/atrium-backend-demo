@@ -92,7 +92,7 @@ describe('people requests', () => {
           title: 'Reply needed: Access to the dispatch planning board',
           subtitle: 'Which regions do you need to plan for?',
           link: `/people-requests/${id}`,
-          actionsPath: null,
+          actionsPath: `/people/requests/${id}`,
           quickActions: [],
         }),
       ]);
