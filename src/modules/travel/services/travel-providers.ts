@@ -104,7 +104,7 @@ export class TravelInboxProvider implements InboxProvider {
           reference: travelReference(row.number),
           dueAt: dueAt(row.startsAt),
           actingAs: 'back_office' as const,
-          actionsPath: null,
+          actionsPath: `/travel/requests/${row.id}`,
           entityId: row.id,
           createdAt: row.createdAt.toISOString(),
           quickActions: [],
