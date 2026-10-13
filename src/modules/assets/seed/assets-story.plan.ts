@@ -33,8 +33,19 @@ export interface SeedAssetSpec {
   events: SeedEvent[];
 }
 
-/** Persona devices that stay in use: [handle, model, created day offset]. */
-type Holding = [string, string, number];
+/** Persona devices: [handle, model, created day offset, later events (e.g. a return)]. */
+type Holding = [string, string, number, SeedEvent[]?];
+
+/**
+ * Back-office device swaps (in-app notifications for the personas, SPEC §10.1): a returned
+ * device from stock goes to the persona, whose old device comes back to stock. Status and
+ * type counts stay as in SPEC §10.4, and stock still holds 3 returned devices.
+ */
+const SWAP = {
+  tom: { assign: -6, returnOld: -5 },
+  arne: { assign: -8, returnOld: -7 },
+  ian: { assign: -2, returnOld: -1 },
+} as const;
 
 const inUse = (to: string, model: string, created: number, extra: SeedEvent[] = [], cc?: string): SeedAssetSpec => ({
   model,
@@ -88,11 +99,21 @@ export function planAssets(pick: (min: number, max: number) => number): SeedAsse
     ['clara', 'Marlowe Tab 10 128 GB Midnight', -160],
     ['clara', 'Corvane C34 Ultrawide', -600],
     ['tom', 'Tessaract Workbook 14', -700],
-    ['tom', 'Skylark View 24', -700],
+    [
+      'tom',
+      'Skylark View 24',
+      -700,
+      [{ t: 'return', day: SWAP.tom.returnOld, condition: 'ok', note: 'Replaced by a 27-inch monitor.' }],
+    ],
     ['tom', 'Brightfield Solo', -420],
     ['tina', 'Vireo Air 13', -330],
     ['tina', 'Skylark View 24', -650],
-    ['arne', 'Vireo Pro 14', -260],
+    [
+      'arne',
+      'Vireo Pro 14',
+      -260,
+      [{ t: 'return', day: SWAP.arne.returnOld, condition: 'ok', note: 'Replaced by a re-imaged Quillon Book 14.' }],
+    ],
     ['arne', 'Novaline N9 256 GB Black', -140],
     ['arne', 'Corvane C27 QHD', -500],
     ['arne', 'Vireo Dock U4', -260],
@@ -101,9 +122,14 @@ export function planAssets(pick: (min: number, max: number) => number): SeedAsse
     ['paula', 'Brightfield Duo', -300],
     ['ian', 'Tessaract Workbook 16', -230],
     ['ian', 'Corvane C34 Ultrawide', -560],
-    ['ian', 'Novaline N8 128 GB Ocean', -330],
+    [
+      'ian',
+      'Novaline N8 128 GB Ocean',
+      -330,
+      [{ t: 'return', day: SWAP.ian.returnOld, condition: 'ok', note: 'Replaced by a phone with more storage.' }],
+    ],
   ];
-  for (const [to, model, created] of personaHoldings) assets.push(inUse(to, model, created));
+  for (const [to, model, created, extra] of personaHoldings) assets.push(inUse(to, model, created, extra));
   assets.push(
     inUse('max', 'Vireo Pro 14', -540, [
       { t: 'update', day: -200, set: { notes: 'Battery replaced under warranty.' } },
@@ -217,10 +243,14 @@ export function planAssets(pick: (min: number, max: number) => number): SeedAsse
   const stock = (model: string, created: number): SeedAssetSpec => ({ model, events: [{ t: 'create', day: created }] });
   assets.push(stock('Vireo Pro 14', -6), stock('Vireo Pro 14', -6), stock('Tessaract Workbook 16', -30));
   assets.push(stock('Vireo Pro 13 Classic', -1150));
+  // The three returned devices go out again in the back-office swaps (SWAP); the personas'
+  // old devices take their place in stock.
   assets.push(
     inUse('formerSdkAgent', 'Quillon Book 14', -700, [
       { t: 'return', day: -130, condition: 'ok' },
       { t: 'update', day: -129, set: { notes: 'Wiped and re-imaged; ready for re-use.' } },
+      { t: 'assign', day: SWAP.arne.assign, to: 'arne', by: 'ito5' },
+      { t: 'accept', day: SWAP.arne.assign },
     ]),
   );
   assets.push({
@@ -233,7 +263,13 @@ export function planAssets(pick: (min: number, max: number) => number): SeedAsse
   });
   assets.push(stock('Skylark View 24', -90), stock('Skylark View 24', -90), stock('Skylark View 24', -90));
   assets.push(stock('Skylark View 27', -90), stock('Skylark View 27', -90));
-  assets.push(inUse('sdkAgent4', 'Skylark View 27', -500, [{ t: 'return', day: -20, condition: 'ok' }]));
+  assets.push(
+    inUse('sdkAgent4', 'Skylark View 27', -500, [
+      { t: 'return', day: -20, condition: 'ok' },
+      { t: 'assign', day: SWAP.tom.assign, to: 'tom', note: 'Larger screen for the booking tools.' },
+      { t: 'accept', day: SWAP.tom.assign },
+    ]),
+  );
   assets.push(stock('Corvane C27 QHD', -300));
   assets.push({
     model: 'Corvane C34 Ultrawide',
@@ -247,6 +283,8 @@ export function planAssets(pick: (min: number, max: number) => number): SeedAsse
   assets.push(
     inUse('easTech4', 'Marlowe X5 256 GB Silver', -400, [
       { t: 'return', day: -12, condition: 'ok', note: 'Moved to a desk role.' },
+      { t: 'assign', day: SWAP.ian.assign, to: 'ian' },
+      { t: 'accept', day: SWAP.ian.assign },
     ]),
   );
   assets.push(stock('Vireo Tower S', -200));

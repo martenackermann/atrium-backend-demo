@@ -1,8 +1,38 @@
 import { dateFromIso } from '@/common/time/time';
 import type { SeedContext, Seeder } from '@/database/seed/seed-context';
 import type { Prisma } from '@/generated/prisma/client';
-import { peopleReference, shortDate, STATUS_LABELS, TYPE_LABELS, type PeopleRequestStatus } from '../people.constants';
+import { type NotificationTemplate, truncate } from '@/modules/core/notifications/notification-template';
+import { peopleCommentAddedNotification } from '../mail/comment-added.notification';
+import { peopleRequestCreatedNotification } from '../mail/request-created.notification';
+import { peopleStatusChangedNotification } from '../mail/status-changed.notification';
+import {
+  isHighPriority,
+  peopleReference,
+  PRIORITY_LABELS,
+  shortDate,
+  STATUS_LABELS,
+  TYPE_LABELS,
+  type PeopleRequestStatus,
+} from '../people.constants';
+import { EFFECTIVE_LABELS } from '../services/people-notifier.service';
 import { type At, JOB_ROLES, PEOPLE_STORY, type StoryEvent } from './people.story';
+
+interface RenderedNotification {
+  templateId: string;
+  title: string;
+  body: string;
+  link: string | null;
+}
+
+/** Title, body and link exactly as NotificationService renders the in-app row. */
+function render<T extends object>(template: NotificationTemplate<T>, context: T): RenderedNotification {
+  return {
+    templateId: template.id,
+    title: template.title?.(context) ?? template.subject(context),
+    body: template.body(context),
+    link: template.link?.(context) ?? null,
+  };
+}
 
 /** Machine targets of the seeded history events (SPEC §5.4). */
 const TARGET: Record<StoryEvent['action'], PeopleRequestStatus> = {
@@ -14,16 +44,6 @@ const TARGET: Record<StoryEvent['action'], PeopleRequestStatus> = {
   reject: 'rejected',
   cancel: 'cancelled',
   reopen: 'reopened',
-};
-
-const STATUS_TEXT: Partial<Record<PeopleRequestStatus, string>> = {
-  in_progress: 'People Ops is working on it.',
-  waiting_internal: 'People Ops is waiting on another team. You will hear from us when it moves on.',
-  waiting_on_requester: 'People Ops needs your reply before they can continue.',
-  reopened: 'The request was reopened.',
-  completed: 'The request is complete.',
-  rejected: 'The request was rejected.',
-  cancelled: 'The request was cancelled.',
 };
 
 const PEOPLE_OPS_HANDLES = new Set(['paula', 'ppl3']);
@@ -122,29 +142,30 @@ async function seedPeople(ctx: SeedContext): Promise<void> {
           ...row,
         },
       });
+    /** One in-app row, title/body/link rendered exactly as NotificationService writes them. */
     const notify = async (
       userId: string | null,
-      title: string,
-      body: string,
+      note: RenderedNotification,
       when: Date,
-      priority = story.priority,
+      options: { high?: boolean; read?: boolean } = {},
     ) => {
       if (!userId) return;
       notifications++;
+      // Older updates are read; the last three days are still unread (unless stated).
+      const read = options.read ?? when < ctx.at(-3, 0, 0);
       await prisma.notification.create({
         data: {
           id: ctx.uuid(when),
           userId,
-          templateId: title.startsWith('New ') ? 'people.request_created' : 'people.status_changed',
+          templateId: note.templateId,
           module: 'people',
-          title,
-          body,
-          link: `/people-requests/${id}`,
-          priority: priority === 'critical' || priority === 'high' ? 'high' : 'normal',
+          title: truncate(note.title, 140),
+          body: truncate(note.body, 500),
+          link: note.link,
+          priority: (options.high ?? isHighPriority(story.priority)) ? 'high' : 'normal',
           entityType: 'people_request',
           entityId: id,
-          // Older updates are read; the last three days are still unread.
-          readAt: when < ctx.at(-3, 0, 0) ? new Date(when.getTime() + 3_600_000) : null,
+          readAt: read ? new Date(when.getTime() + 3_600_000) : null,
           createdAt: when,
         },
       });
@@ -158,11 +179,19 @@ async function seedPeople(ctx: SeedContext): Promise<void> {
       action: 'create',
       toState: 'open',
     });
-    const subjectName = `${data.firstName} ${data.lastName}`;
-    const createdTitle = `New ${TYPE_LABELS[story.type].toLowerCase()} request: ${story.title}`;
-    const createdBody = `${requester.displayName} requested ${TYPE_LABELS[story.type].toLowerCase()} for ${subjectName} (${reference}). Effective: ${shortDate(ctx.d(story.effective))}.`;
-    await notify(requester.id, createdTitle, createdBody, createdAt);
-    if (managerId && managerId !== requester.id) await notify(managerId, createdTitle, createdBody, createdAt);
+    const created = render(peopleRequestCreatedNotification, {
+      requestId: id,
+      reference,
+      typeLabel: TYPE_LABELS[story.type],
+      title: story.title,
+      effectiveDate: shortDate(ctx.d(story.effective)),
+      effectiveLabel: EFFECTIVE_LABELS[story.type],
+      priorityLabel: PRIORITY_LABELS[story.priority],
+      requesterName: requester.displayName,
+      subjectName: `${data.firstName} ${data.lastName}`,
+    });
+    await notify(requester.id, created, createdAt);
+    if (managerId && managerId !== requester.id) await notify(managerId, created, createdAt);
 
     // history -> audit rows, status-note comments, in-app status notifications.
     let from: PeopleRequestStatus = 'open';
@@ -194,33 +223,49 @@ async function seedPeople(ctx: SeedContext): Promise<void> {
           },
         });
       }
-      const title = `${reference} is now ${STATUS_LABELS[to]}`;
-      const body = [
-        `${story.title}: ${STATUS_TEXT[to] ?? ''}`,
-        event.question ? `Question: ${event.question}` : null,
-        event.reason ? `Reason: ${event.reason}` : null,
-        event.note && event.action !== 'wait_internal' ? `Note: ${event.note}` : null,
-      ]
-        .filter(Boolean)
-        .join(' ');
-      if (actor.id !== requester.id) await notify(requester.id, title, body, when);
-      if (managerId && managerId !== actor.id && managerId !== requester.id) await notify(managerId, title, body, when);
+      // The wait_internal note is internal and never part of the notification (#19).
+      const changed = render(peopleStatusChangedNotification, {
+        requestId: id,
+        reference,
+        title: story.title,
+        status: to,
+        statusLabel: STATUS_LABELS[to],
+        actorName: actor.displayName,
+        question: event.question ?? null,
+        reason: event.reason ?? null,
+        note: event.action === 'wait_internal' ? null : (event.note ?? null),
+      });
+      if (actor.id !== requester.id) await notify(requester.id, changed, when);
+      if (managerId && managerId !== actor.id && managerId !== requester.id) await notify(managerId, changed, when);
       from = to;
     }
 
     for (const comment of story.comments) {
       const when = at(comment.at);
+      const author = user(comment.by);
       await prisma.peopleRequestComment.create({
         data: {
           id: ctx.uuid(when),
           requestId: id,
-          authorId: user(comment.by).id,
+          authorId: author.id,
           body: comment.body,
           internal: comment.internal ?? false,
           kind: 'comment',
           createdAt: when,
         },
       });
+      // Public comments notify the other party (people.comment_added, normal priority).
+      const added = render(peopleCommentAddedNotification, {
+        requestId: id,
+        reference,
+        title: story.title,
+        authorName: author.displayName,
+        excerpt: comment.body,
+      });
+      for (const recipient of comment.inApp ?? []) {
+        if (comment.internal) throw new Error(`${reference}: internal comments never notify`);
+        await notify(user(recipient.to).id, added, when, { high: false, read: recipient.read ?? false });
+      }
     }
   }
 

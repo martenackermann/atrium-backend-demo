@@ -9,6 +9,7 @@ import { executiveApprovalRequestedNotification } from '../mail/executive-approv
 import { participationBookedNotification } from '../mail/participation-booked.notification';
 import { participationCreatedNotification } from '../mail/participation-created.notification';
 import { participationDeclinedNotification } from '../mail/participation-declined.notification';
+import { participationWithdrawnNotification } from '../mail/participation-withdrawn.notification';
 import { planEntry } from '../services/training-entry.service';
 import { formatDateRange, formatMoney, trainingReference } from '../training.constants';
 import { demoPdf } from './demo-pdf';
@@ -16,6 +17,7 @@ import {
   type At,
   type StoryAttendee,
   type StoryRequest,
+  type StoryStep,
   TRAINING_STORY,
   TRAINING_STORY_NOTIFICATIONS,
 } from './training-story.plan';
@@ -757,6 +759,17 @@ export async function seedTraining(ctx: SeedContext): Promise<void> {
             threshold: formatMoney(threshold),
             managerDecision: `Approved by ${attendee.decidedBy ?? approverName}.`,
           });
+        case 'training.participation_withdrawn': {
+          const step = attendee.spec.steps.find(
+            (s): s is Extract<StoryStep, { kind: 'withdraw' }> => s.kind === 'withdraw',
+          );
+          if (!step) throw new Error(`${base.reference} ${n.attendee}: no withdraw step`);
+          return render(participationWithdrawnNotification, {
+            ...base,
+            withdrawnBy: name(step.by),
+            reason: step.reason ?? null,
+          });
+        }
         default:
           throw new Error(`Unknown story notification ${n.template}`);
       }

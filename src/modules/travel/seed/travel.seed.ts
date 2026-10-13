@@ -11,6 +11,7 @@ import { buildRoute, evaluateApprovalReasons, isHighPriority } from '../domain/t
 import { travelApprovalRequested } from '../mail/travel.approval_requested.notification';
 import { travelApproved } from '../mail/travel.approved.notification';
 import { travelBooked } from '../mail/travel.booked.notification';
+import { travelBookingImpossible } from '../mail/travel.booking_impossible.notification';
 import { travelDeclined } from '../mail/travel.declined.notification';
 import { travelSubmittedToDesk } from '../mail/travel.submitted_to_desk.notification';
 import type { TravelMailBase } from '../mail/travel-mail.helpers';
@@ -137,6 +138,7 @@ export async function seedTravel(ctx: SeedContext): Promise<void> {
     let booking: Prisma.TravelBookingUncheckedCreateInput | null = null;
     let bookedAt: Date | null = null;
     let decisionAt: Date | null = null;
+    let impossibleAt: Date | null = null;
     for (const event of spec.events ?? []) {
       const next: TravelStatus | undefined = NEXT[status]?.[event.type];
       if (!next) throw new Error(`Seed ${reference}: ${event.type} not allowed in ${status}`);
@@ -219,6 +221,7 @@ export async function seedTravel(ctx: SeedContext): Promise<void> {
           break;
         case 'mark_booking_impossible':
           Object.assign(fields, { bookingImpossibleReason: event.reason });
+          impossibleAt = when;
           push({
             occurredAt: when,
             actorId: tom.id,
@@ -397,6 +400,10 @@ export async function seedTravel(ctx: SeedContext): Promise<void> {
               attachmentCount: 1,
             };
             return { t: travelBooked, c, when: bookedAt!, high: false };
+          }
+          case 'booking_impossible': {
+            const c = { ...base, reason: fields.bookingImpossibleReason as string };
+            return { t: travelBookingImpossible, c, when: impossibleAt!, high: false };
           }
         }
       })();
