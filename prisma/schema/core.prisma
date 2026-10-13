@@ -1,15 +1,436 @@
-// Core module models (users, org, roles, inbox). Placeholder for phase 2a:
-// phase 2b replaces this with the real core domain.
+// =============================================================================
+// Core module (foundation): users, org, roles, deputies, sessions, audit log,
+// attachments, notifications, email outbox, idempotency keys, job runs.
+//
+// SHARED-FILE PROTOCOL (SPEC §1): User, Department, Site, CostCenter and
+// Attachment contain marked blocks `// >>> A<n> relations` ... `// <<< A<n>`.
+// A slice adds its back-relation fields ONLY inside its own block and never
+// edits anything else in this file. Name relations "<Model><Purpose>", e.g.
+//   trainingRequestsRequested TrainingRequest[] @relation("TrainingRequestRequester")
+// =============================================================================
+
+enum AssignableRole {
+  executive
+  training_office
+  travel_desk
+  asset_admin
+  people_ops
+  news_editor
+  it_admin
+
+  @@map("assignable_role")
+}
+
+enum ActingAs {
+  self
+  requester
+  approver
+  deputy
+  manager_chain
+  executive
+  back_office
+  admin
+  system
+
+  @@map("acting_as")
+}
+
+/// SPEC §6.1 reason for the resolved approver (store on approval steps).
+enum ApproverReason {
+  direct_manager
+  site_manager_escalation
+  manager_unavailable
+  executive_self
+  fallback
+
+  @@map("approver_reason")
+}
+
+/// D8 automatic approvals.
+enum AutoApproval {
+  executive_self
+  requester_is_approver
+  same_approver
+
+  @@map("auto_approval")
+}
+
+enum AttachmentPurpose {
+  training_document
+  training_booking_document
+  travel_booking_confirmation
+  news_cover
+  people_document
+
+  @@map("attachment_purpose")
+}
+
+enum NotificationPriority {
+  high
+  normal
+
+  @@map("notification_priority")
+}
+
+enum EmailStatus {
+  queued
+  sent
+  failed
+
+  @@map("email_status")
+}
+
+enum JobTrigger {
+  cron
+  manual
+
+  @@map("job_trigger")
+}
+
+enum JobRunStatus {
+  running
+  succeeded
+  failed
+
+  @@map("job_run_status")
+}
 
 model User {
-  id           String   @id @default(uuid(7)) @db.Uuid
-  email        String   @unique
-  displayName  String
-  passwordHash String?
-  /// Role keys, e.g. ["employee"]. Replaced by a proper role model in 2b.
-  roles        String[] @default([])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String    @id @default(uuid(7)) @db.Uuid
+  /// Login id, stored lowercased.
+  email          String    @unique
+  /// argon2id; never serialised.
+  passwordHash   String    @map("password_hash")
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  /// `${firstName} ${lastName}`
+  displayName    String    @map("display_name")
+  jobTitle       String?   @map("job_title")
+  employeeNumber String    @unique @map("employee_number")
+  phone          String?
+  departmentId   String?   @map("department_id") @db.Uuid
+  siteId         String?   @map("site_id") @db.Uuid
+  costCenterId   String    @map("cost_center_id") @db.Uuid
+  managerId      String?   @map("manager_id") @db.Uuid
+  /// Drives approval escalation (SPEC §6.1).
+  isSiteManager  Boolean   @default(false) @map("is_site_manager")
+  /// Inactive users cannot log in and are skipped by approver resolution.
+  active         Boolean   @default(true)
+  personaKey     String?   @unique @map("persona_key")
+  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(3)
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  department          Department?      @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  site                Site?            @relation(fields: [siteId], references: [id])
+  costCenter          CostCenter       @relation(fields: [costCenterId], references: [id])
+  manager             User?            @relation("UserManager", fields: [managerId], references: [id])
+  directReports       User[]           @relation("UserManager")
+  roles               UserRole[]       @relation("UserRoles")
+  rolesGranted        UserRole[]       @relation("UserRoleGrantedBy")
+  departmentsHeaded   Department[]     @relation("DepartmentHead")
+  deputiesAsPrincipal Deputy[]         @relation("DeputyPrincipal")
+  deputiesAsDeputy    Deputy[]         @relation("DeputyDeputy")
+  deputiesCreated     Deputy[]         @relation("DeputyCreatedBy")
+  sessions            AuthSession[]
+  auditLogs           AuditLog[]
+  attachmentsUploaded Attachment[]     @relation("AttachmentUploadedBy")
+  notifications       Notification[]
+  idempotencyKeys     IdempotencyKey[]
+  jobRunsTriggered    JobRun[]
+
+  // >>> A1 relations
+  // <<< A1
+  // >>> A2 relations
+  // <<< A2
+  // >>> A3 relations
+  // <<< A3
+  // >>> A4 relations
+  // <<< A4
+
+  @@index([managerId])
+  @@index([departmentId])
   @@map("users")
+}
+
+model UserRole {
+  userId      String         @map("user_id") @db.Uuid
+  role        AssignableRole
+  grantedById String?        @map("granted_by_id") @db.Uuid
+  grantedAt   DateTime       @default(now()) @map("granted_at") @db.Timestamptz(3)
+
+  user      User  @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("UserRoleGrantedBy", fields: [grantedById], references: [id])
+
+  @@id([userId, role])
+  @@map("user_roles")
+}
+
+model Department {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  code      String   @unique
+  name      String
+  headId    String?  @map("head_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  head        User?        @relation("DepartmentHead", fields: [headId], references: [id])
+  members     User[]       @relation("DepartmentMembers")
+  costCenters CostCenter[]
+
+  // >>> A1 relations
+  // <<< A1
+  // >>> A2 relations
+  // <<< A2
+  // >>> A3 relations
+  // <<< A3
+  // >>> A4 relations
+  // <<< A4
+
+  @@map("departments")
+}
+
+model Site {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users User[]
+
+  // >>> A1 relations
+  // <<< A1
+  // >>> A2 relations
+  // <<< A2
+  // >>> A3 relations
+  // <<< A3
+  // >>> A4 relations
+  // <<< A4
+
+  @@map("sites")
+}
+
+model CostCenter {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  code         String   @unique
+  name         String
+  departmentId String?  @map("department_id") @db.Uuid
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  users      User[]
+
+  // >>> A1 relations
+  // <<< A1
+  // >>> A2 relations
+  // <<< A2
+  // >>> A3 relations
+  // <<< A3
+  // >>> A4 relations
+  // <<< A4
+
+  @@map("cost_centers")
+}
+
+/// Principal -> deputy delegation with an optional validity window (calendar dates).
+model Deputy {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  principalId String    @map("principal_id") @db.Uuid
+  deputyId    String    @map("deputy_id") @db.Uuid
+  validFrom   DateTime? @map("valid_from") @db.Date
+  validTo     DateTime? @map("valid_to") @db.Date
+  /// <= 200 characters
+  note        String?
+  createdById String    @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  principal User @relation("DeputyPrincipal", fields: [principalId], references: [id])
+  deputy    User @relation("DeputyDeputy", fields: [deputyId], references: [id])
+  createdBy User @relation("DeputyCreatedBy", fields: [createdById], references: [id])
+
+  @@index([deputyId])
+  @@index([principalId])
+  @@map("deputies")
+}
+
+/// One row per issued JWT (`id` = `jti`); logout sets `revokedAt`.
+model AuthSession {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  userAgent String?   @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+/// Append-only (a migration trigger rejects UPDATE and DELETE).
+model AuditLog {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  /// null = system
+  actorId       String?  @map("actor_id") @db.Uuid
+  actingAs      ActingAs @map("acting_as")
+  /// core | training | travel | assets | people | news
+  module        String
+  /// snake_case entity type, e.g. training_attendee
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  /// Machine event (`approve`) or create | update | delete | auto_approve | remind ...
+  action        String
+  fromState     String?  @map("from_state")
+  toState       String?  @map("to_state")
+  reason        String?
+  /// FieldChange[] = { field, from, to } (secrets/PII masked as "•••")
+  changes       Json?
+  metadata      Json?
+  /// Request id or job run id
+  correlationId String   @map("correlation_id")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([occurredAt])
+  @@map("audit_logs")
+}
+
+model Attachment {
+  id           String            @id @default(uuid(7)) @db.Uuid
+  /// yyyy/mm/<uuid>; never derived from the file name, never overwritten
+  storageKey   String            @unique @map("storage_key")
+  originalName String            @map("original_name")
+  /// Detected from magic bytes, not taken from the client
+  mimeType     String            @map("mime_type")
+  sizeBytes    Int               @map("size_bytes")
+  sha256       String
+  purpose      AttachmentPurpose
+  /// null = staged (not linked yet)
+  entityType   String?           @map("entity_type")
+  entityId     String?           @map("entity_id") @db.Uuid
+  uploadedById String            @map("uploaded_by_id") @db.Uuid
+  linkedAt     DateTime?         @map("linked_at") @db.Timestamptz(3)
+  deletedAt    DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  uploadedBy User @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  // >>> A1 relations
+  // <<< A1
+  // >>> A2 relations
+  // <<< A2
+  // >>> A3 relations
+  // <<< A3
+  // >>> A4 relations
+  // <<< A4
+
+  @@index([entityType, entityId])
+  @@index([uploadedById, createdAt])
+  @@map("attachments")
+}
+
+/// In-app notification (one per user recipient of an email-producing notification).
+model Notification {
+  id         String               @id @default(uuid(7)) @db.Uuid
+  userId     String               @map("user_id") @db.Uuid
+  templateId String               @map("template_id")
+  module     String
+  /// <= 140 characters
+  title      String
+  /// <= 500 characters, plain text
+  body       String
+  /// Frontend route
+  link       String?
+  priority   NotificationPriority @default(normal)
+  entityType String?              @map("entity_type")
+  entityId   String?              @map("entity_id") @db.Uuid
+  readAt     DateTime?            @map("read_at") @db.Timestamptz(3)
+  createdAt  DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+/// Email outbox and log. Rendered and delivered by the `mail.send` job.
+model EmailMessage {
+  id            String               @id @default(uuid(7)) @db.Uuid
+  templateId    String               @map("template_id")
+  to            String[]
+  cc            String[]
+  subject       String
+  priority      NotificationPriority @default(normal)
+  status        EmailStatus          @default(queued)
+  attempts      Int                  @default(0)
+  lastError     String?              @map("last_error")
+  attachmentIds String[]             @map("attachment_ids") @db.Uuid
+  /// Template context used to render the message.
+  payload       Json
+  entityType    String?              @map("entity_type")
+  entityId      String?              @map("entity_id") @db.Uuid
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  sentAt        DateTime?            @map("sent_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("email_messages")
+}
+
+/// Replay store for `Idempotency-Key` on POST (TTL 24 h).
+model IdempotencyKey {
+  userId         String   @map("user_id") @db.Uuid
+  key            String
+  method         String
+  path           String
+  requestHash    String   @map("request_hash")
+  responseStatus Int      @map("response_status")
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
+
+model JobRun {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  jobName       String       @map("job_name")
+  triggeredBy   JobTrigger   @map("triggered_by")
+  triggeredById String?      @map("triggered_by_id") @db.Uuid
+  startedAt     DateTime     @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt    DateTime?    @map("finished_at") @db.Timestamptz(3)
+  status        JobRunStatus @default(running)
+  summary       Json         @default("{}")
+  error         String?
+  /// Scheduled slot (ISO minute) for cron runs; null for manual runs. Unique per job = cron dedupe.
+  slot          String?
+
+  triggeredByUser User? @relation(fields: [triggeredById], references: [id])
+
+  @@unique([jobName, slot])
+  @@index([jobName, startedAt(sort: Desc)])
+  @@map("job_runs")
+}
+
+/// Small key/value store for system flags (e.g. "seed.completedAt").
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("system_settings")
 }
