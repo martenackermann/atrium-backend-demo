@@ -103,6 +103,11 @@ export class AssetDashboardService {
           a.number - b.number,
       )
       .slice(0, OLDEST_PENDING);
+    // "Waiting since" is the assignment date; updatedAt also moves with reminders and edits.
+    const oldestItems = (await this.assets.listItems(oldest, user, ability)).map((item, index) => ({
+      ...item,
+      assignedAt: (openAssignmentOf(oldest[index])?.assignedAt ?? oldest[index].updatedAt).toISOString(),
+    }));
 
     const auditedIds = [...new Set(auditRows.map((r) => r.entityId))];
     const [auditedAssets, assignments] = await Promise.all([
@@ -128,7 +133,7 @@ export class AssetDashboardService {
       pendingAcceptance: {
         total: pendingRows.length,
         overdue,
-        oldest: await this.assets.listItems(oldest, user, ability),
+        oldest: oldestItems,
       },
       recentActivity: entries.flatMap((entry) => {
         const asset = assetById.get(entry.entityId);

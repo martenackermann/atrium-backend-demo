@@ -181,6 +181,26 @@ describe('assets: inventory, dashboard and export', () => {
       expect(body.byManufacturer[0].total).toBeGreaterThanOrEqual(body.byManufacturer.at(-1).total);
     });
 
+    it('dates waiting devices by their assignment, not by the last change', async () => {
+      const tablet = await t.prisma.asset.findFirstOrThrow({
+        where: { status: 'pending_acceptance', model: { name: 'Quillon Slate 11 64 GB Silver' } },
+        include: {
+          assignments: { where: { acceptedAt: null, declinedAt: null, unassignedAt: null, returnedAt: null } },
+        },
+      });
+      const before = await t.http().get(`/api/v1/assets/${tablet.id}`).set('Authorization', arne).expect(200);
+      await t
+        .http()
+        .patch(`/api/v1/assets/${tablet.id}`)
+        .set('Authorization', arne)
+        .send({ notes: 'Waits on the Hillford shelf.', version: before.body.version })
+        .expect(200);
+      const res = await t.http().get('/api/v1/assets/dashboard').set('Authorization', arne).expect(200);
+      const row = res.body.pendingAcceptance.oldest.find((a: { id: string }) => a.id === tablet.id);
+      expect(row.assignedAt).toBe(tablet.assignments[0].assignedAt.toISOString());
+      expect(row.updatedAt).not.toBe(row.assignedAt);
+    });
+
     it('counts queues for everyone and admin counts for admins only', async () => {
       const mine = await t.http().get('/api/v1/assets/queues/counts').set('Authorization', emma).expect(200);
       expect(mine.body).toEqual({ mine: { pending: 3 }, admin: null });
