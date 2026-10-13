@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
+import { MulterModule } from '@nestjs/platform-express';
+import { AppConfig } from '@/config/app-config';
 import { CoreAbilities } from './abilities/core.abilities';
 import { AdminController, AuditController } from './admin/admin.controller';
 import { AdminUsersService } from './admin/admin-users.service';
@@ -27,7 +29,18 @@ import { UsersService } from './users/users.service';
  * (CoreRegistryModule, CoreAuthModule) so slices can inject them without importing this.
  */
 @Module({
-  imports: [DiscoveryModule, CoreExtensionsModule.forFeature({ enums: CORE_ENUMS, auditLabels: CORE_AUDIT_LABELS })],
+  imports: [
+    DiscoveryModule,
+    CoreExtensionsModule.forFeature({ enums: CORE_ENUMS, auditLabels: CORE_AUDIT_LABELS }),
+    // Upload parser limits: stop reading at UPLOAD_MAX_BYTES (+1 so the service still answers its
+    // own 413) instead of buffering a larger body in memory; one file, a few small fields.
+    MulterModule.registerAsync({
+      inject: [AppConfig],
+      useFactory: (config: AppConfig) => ({
+        limits: { fileSize: config.get('UPLOAD_MAX_BYTES') + 1, files: 1, fields: 5, fieldSize: 1024, parts: 10 },
+      }),
+    }),
+  ],
   controllers: [
     AuthController,
     MeController,

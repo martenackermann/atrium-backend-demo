@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { from, type Observable, of, switchMap } from 'rxjs';
 import { ProblemException } from '@/common/http/problem';
+import { AppConfig } from '@/config/app-config';
 import { PrismaService } from '@/database/prisma.service';
 import { Prisma } from '@/generated/prisma/client';
 
@@ -10,8 +11,13 @@ export const IDEMPOTENCY_HEADER = 'idempotency-key';
 const VALID_KEY = /^[\w-]{8,128}$/;
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-function hashRequest(req: Request): string {
-  return createHash('sha256')
+/**
+ * Keyed fingerprint of method, path and body. An HMAC, not a plain hash: bodies can carry
+ * low-entropy secrets (a booking PIN) that a plain SHA-256 in `idempotency_keys` would expose
+ * to brute force by anyone who can read the database.
+ */
+function hashRequest(key: Buffer, req: Request): string {
+  return createHmac('sha256', key)
     .update(`${req.method} ${req.path}\n${JSON.stringify(req.body ?? null)}`)
     .digest('hex');
 }
@@ -24,7 +30,14 @@ function hashRequest(req: Request): string {
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly hashKey: Buffer;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    config: AppConfig,
+  ) {
+    this.hashKey = createHmac('sha256', config.get('JWT_SECRET')).update('atrium:idempotency').digest();
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
@@ -36,7 +49,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       throw ProblemException.fieldError('Idempotency-Key', 'Use 8-128 letters, digits, "-" or "_" (a UUID).');
     }
     const userId = req.user.id;
-    const requestHash = hashRequest(req);
+    const requestHash = hashRequest(this.hashKey, req);
 
     return from(this.prisma.idempotencyKey.findUnique({ where: { userId_key: { userId, key } } })).pipe(
       switchMap((stored) => {

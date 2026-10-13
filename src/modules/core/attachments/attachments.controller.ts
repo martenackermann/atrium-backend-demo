@@ -28,9 +28,6 @@ import { ProblemException } from '@/common/http/problem';
 import { UuidPipe } from '@/common/http/uuid.pipe';
 import { AttachmentService } from './attachment.service';
 
-/** Hard cap for the multipart parser; the configurable UPLOAD_MAX_BYTES check happens in the service. */
-const MULTIPART_HARD_LIMIT = 50 * 1024 * 1024;
-
 /** Root DTO schemas must not carry a `.meta({ id })`: copy the shape of shared schemas. */
 class AttachmentDto extends createZodDto(z.object(attachmentDtoSchema.shape)) {}
 class UploadAttachmentDto extends createZodDto(z.object({ purpose: attachmentPurposeSchema })) {}
@@ -51,7 +48,8 @@ export class AttachmentsController {
   constructor(private readonly attachments: AttachmentService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MULTIPART_HARD_LIMIT, files: 1 } }))
+  // Parser limits (UPLOAD_MAX_BYTES, one file) come from MulterModule in CoreModule.
+  @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Stage an upload; link it later by id from the owning resource' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
