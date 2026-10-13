@@ -9,10 +9,20 @@ import { isSeeded, runSeed } from './run-seed';
  * Seed command line (DATABASE_URL from env / .env):
  *   tsx prisma/seed.ts              (pnpm db:seed)   seed an empty database
  *   ... --if-empty                  skip when already seeded (Docker first start)
+ * Refused with NODE_ENV=production and DEMO_MODE=false (the personas share a public password).
  *   ... --reset                     truncate all tables first (pnpm demo:reset)
  */
 export async function seedCli(argv: string[] = process.argv.slice(2)): Promise<void> {
   const env = validateEnv(process.env);
+  if (env.NODE_ENV === 'production' && !env.DEMO_MODE) {
+    // The demo data lets every persona (it_admin included) sign in with the public password demo1234.
+    const message = '[seed] demo data is not seeded with NODE_ENV=production and DEMO_MODE=false';
+    if (argv.includes('--if-empty')) {
+      console.warn(`${message} - skipping (Docker first start)`);
+      return;
+    }
+    throw new Error(message);
+  }
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: env.DATABASE_URL }) });
   try {
     if (argv.includes('--reset')) {
