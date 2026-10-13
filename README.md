@@ -8,7 +8,7 @@ with multi-step approvals, company devices, onboarding and offboarding requests,
 ![Node 22](https://img.shields.io/badge/node-22-339933?logo=node.js&logoColor=white)
 ![NestJS 11](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)
 
-**[Live demo](https://atrium-demo.vercel.app)** (the web app in demo mode, runs in your browser) ·
+**[Live demo](https://atrium-workplace.vercel.app)** (the web app in demo mode, runs in your browser) ·
 **[Frontend repository](https://github.com/martenackermann/atrium-frontend-demo)** ·
 API reference at `/api/docs` once the API runs
 
