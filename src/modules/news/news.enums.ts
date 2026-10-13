@@ -31,7 +31,7 @@ export const NEWS_ENUMS: Record<string, EnumOption[]> = {
   newsType: enumOptions(NEWS_TYPES, { changelog: 'Changelog', update: 'Update', information: 'Information' }),
   newsStatus: enumOptions(NEWS_STATUSES, {
     draft: ['Draft', 'neutral'],
-    scheduled: ['Scheduled', 'waiting'],
+    scheduled: ['Scheduled', 'moving'],
     published: ['Published', 'positive'],
     archived: ['Archived', 'neutral'],
   }),
@@ -89,7 +89,7 @@ export const newsPostWorkflowMeta: WorkflowMeta = {
   initialStates: ['draft'],
   states: {
     draft: { label: 'Draft', tone: 'neutral' },
-    scheduled: { label: 'Scheduled', tone: 'waiting' },
+    scheduled: { label: 'Scheduled', tone: 'moving' },
     published: { label: 'Published', tone: 'positive' },
     archived: { label: 'Archived', tone: 'neutral' },
   },

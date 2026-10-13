@@ -27,7 +27,7 @@ export const PEOPLE_ENUMS: Record<string, EnumOption[]> = {
   }),
   priority: enumOptions(PRIORITIES, {
     critical: ['Critical', 'negative'],
-    high: ['High', 'negative'],
+    high: ['High', 'moving'],
     normal: ['Normal', 'neutral'],
     low: ['Low', 'neutral'],
   }),
