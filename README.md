@@ -82,7 +82,8 @@ How they come together for the product's hard parts:
   same transaction, and downloaded through short-lived signed URLs.
 
 Also in the box: argon2 password hashing, Helmet, login rate limits, pino logging with request
-ids, RFC 9457 problem responses, idempotency keys on `POST`, and Vitest + Supertest.
+ids and redacted credentials, RFC 9457 problem responses, keyed idempotency on `POST`, a startup
+check that refuses placeholder secrets in production, and Vitest + Supertest.
 
 ## Architecture
 
@@ -275,6 +276,10 @@ Ports already taken? Choose others: `API_PORT=3200 MAILPIT_UI_PORT=8026 docker c
 PostgreSQL is not published on the host, so a local database on 5432 does not get in the way.
 `docker compose down -v` removes the containers and the data.
 
+The Compose file uses demo-only placeholder secrets and logs a warning about them. For anything
+reachable by others, set your own `JWT_SECRET`, `FILE_SIGNING_SECRET` and `ENCRYPTION_KEY` (see
+[Configuration](#configuration)).
+
 To use the web app against this API, run the
 [frontend](https://github.com/martenackermann/atrium-frontend-demo) with `pnpm dev`; it expects the
 API at `http://localhost:3100/api/v1`.
@@ -380,29 +385,36 @@ Every variable is validated at startup (`src/config/env.schema.ts`), and the API
 with an invalid configuration. [`.env.example`](./.env.example) lists all of them with local-dev
 placeholders. The important ones:
 
-| Variable                                | Default                                | Purpose                                                      |
-| --------------------------------------- | -------------------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL`                          | (required)                             | PostgreSQL connection string                                 |
-| `PORT`                                  | `3100`                                 | HTTP port                                                    |
-| `APP_BASE_URL`                          | `http://localhost:3000`                | Web app URL for links in emails and notifications            |
-| `API_PUBLIC_URL`                        | `http://localhost:3100`                | Public URL of this API for signed download links             |
-| `CORS_ORIGINS`                          | the local frontends                    | Comma-separated allowlist, no wildcard                       |
-| `JWT_SECRET`                            | (required)                             | Signs access tokens                                          |
-| `JWT_TTL_MINUTES`                       | `480`                                  | Token lifetime; signing out revokes the session              |
-| `ENCRYPTION_KEY`                        | local placeholder                      | 64 hex characters, AES-256-GCM key for travel booking PINs   |
-| `FILE_SIGNING_SECRET`                   | local placeholder                      | Signs download URLs                                          |
-| `FILE_URL_TTL_SECONDS`                  | `300`                                  | Lifetime of a signed download URL                            |
-| `STORAGE_DIR` / `UPLOAD_MAX_BYTES`      | `./storage` / `10485760`               | Upload directory / upload size limit                         |
-| `SMTP_HOST` / `SMTP_PORT` / `MAIL_FROM` | `127.0.0.1` / `1025` / Atrium no-reply | Outgoing mail (Mailpit in development)                       |
-| `MAILBOX_*`                             | `travel-desk@example.com`, ...         | Shared mailboxes of the desks                                |
-| `APP_TIMEZONE`                          | `Europe/Berlin`                        | "Today", due dates and cron schedules                        |
-| `LOGIN_RATE_LIMIT`                      | `10`                                   | Password sign-ins per 15 minutes per email and IP            |
-| `DEMO_MODE`                             | `true`                                 | Persona list and passwordless demo sign-in                   |
-| `ENABLE_REMINDER_CRONS`                 | `false`                                | Reminder crons stay off in demo mode unless this is set      |
-| `DEMO_RESET_CRON`                       | (unset)                                | For example `0 4 * * *` to reset the demo data every night   |
-| `SEED_TODAY` / `SEED_FAKER_SEED`        | today / `4711`                         | Reference date and random seed of the demo data              |
-| `TRAINING_EXECUTIVE_THRESHOLD_CENTS`    | `500000`                               | Cost from which a training needs the executive step (€5,000) |
-| `CRON_*`                                | see `.env.example`                     | Schedules of the reminder and maintenance jobs               |
+| Variable                                | Default                                | Purpose                                                                     |
+| --------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
+| `DATABASE_URL`                          | (required)                             | PostgreSQL connection string                                                |
+| `PORT`                                  | `3100`                                 | HTTP port                                                                   |
+| `APP_BASE_URL`                          | `http://localhost:3000`                | Web app URL for links in emails and notifications                           |
+| `API_PUBLIC_URL`                        | `http://localhost:3100`                | Public URL of this API for signed download links                            |
+| `CORS_ORIGINS`                          | the local frontends                    | Comma-separated allowlist, no wildcard                                      |
+| `TRUST_PROXY`                           | `loopback`                             | Proxies allowed to set `X-Forwarded-For`, e.g. `1` behind one reverse proxy |
+| `JWT_SECRET`                            | (required)                             | Signs access tokens                                                         |
+| `JWT_TTL_MINUTES`                       | `480`                                  | Token lifetime; signing out revokes the session                             |
+| `ENCRYPTION_KEY`                        | local placeholder                      | 64 hex characters, AES-256-GCM key for travel booking PINs                  |
+| `FILE_SIGNING_SECRET`                   | local placeholder                      | Signs download URLs                                                         |
+| `FILE_URL_TTL_SECONDS`                  | `300`                                  | Lifetime of a signed download URL                                           |
+| `STORAGE_DIR` / `UPLOAD_MAX_BYTES`      | `./storage` / `10485760`               | Upload directory / upload size limit                                        |
+| `SMTP_HOST` / `SMTP_PORT` / `MAIL_FROM` | `127.0.0.1` / `1025` / Atrium no-reply | Outgoing mail (Mailpit in development)                                      |
+| `MAILBOX_*`                             | `travel-desk@example.com`, ...         | Shared mailboxes of the desks                                               |
+| `APP_TIMEZONE`                          | `Europe/Berlin`                        | "Today", due dates and cron schedules                                       |
+| `LOGIN_RATE_LIMIT`                      | `10`                                   | Password sign-ins per 15 minutes per email and IP                           |
+| `DEMO_MODE`                             | `true`                                 | Persona list and passwordless demo sign-in                                  |
+| `ENABLE_REMINDER_CRONS`                 | `false`                                | Reminder crons stay off in demo mode unless this is set                     |
+| `DEMO_RESET_CRON`                       | (unset)                                | For example `0 4 * * *` to reset the demo data every night                  |
+| `SEED_TODAY` / `SEED_FAKER_SEED`        | today / `4711`                         | Reference date and random seed of the demo data                             |
+| `TRAINING_EXECUTIVE_THRESHOLD_CENTS`    | `500000`                               | Cost from which a training needs the executive step (€5,000)                |
+| `CRON_*`                                | see `.env.example`                     | Schedules of the reminder and maintenance jobs                              |
+
+**Secrets in production.** With `NODE_ENV=production` and `DEMO_MODE=false` the API refuses to
+start with the placeholder values: `JWT_SECRET` and `FILE_SIGNING_SECRET` must be two different
+values of at least 32 characters, and `ENCRYPTION_KEY` must be 64 random hex digits. Generate them
+with `openssl rand -base64 48` (twice) and `openssl rand -hex 32`. The demo seed also refuses to
+run against such a database, so the demo personas never end up in a real deployment.
 
 Business rules such as reminder cadences, high-priority windows, the acceptance deadline for
 devices and the reopen window for people requests are variables too; see `.env.example`.
