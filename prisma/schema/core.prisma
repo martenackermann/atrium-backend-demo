@@ -145,6 +145,13 @@ model User {
   // >>> A2 relations
   // <<< A2
   // >>> A3 relations
+  assetsAssigned       Asset[]           @relation("AssetAssignedUser")
+  assetsCreated        Asset[]           @relation("AssetCreatedBy")
+  assetsUpdated        Asset[]           @relation("AssetUpdatedBy")
+  assetsDeleted        Asset[]           @relation("AssetDeletedBy")
+  assetAssignments     AssetAssignment[] @relation("AssetAssignmentUser")
+  assetAssignmentsMade AssetAssignment[] @relation("AssetAssignmentAssignedBy")
+  assetModelsCreated   AssetModel[]      @relation("AssetModelCreatedBy")
   // <<< A3
   // >>> A4 relations
   // <<< A4
@@ -229,6 +236,7 @@ model CostCenter {
   // >>> A2 relations
   // <<< A2
   // >>> A3 relations
+  assets Asset[] @relation("AssetCostCenter")
   // <<< A3
   // >>> A4 relations
   // <<< A4
