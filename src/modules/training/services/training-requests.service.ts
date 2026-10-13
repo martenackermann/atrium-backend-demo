@@ -35,6 +35,9 @@ import { TrainingMapper } from './training-mapper.service';
 import { TrainingParticipationsService } from './training-participations.service';
 import { requestCoreInclude, type RequestCoreRow } from './training.includes';
 
+/** Back-office fields every request viewer may see in `update_back_office` timeline entries. */
+const PUBLIC_BACK_OFFICE_FIELDS: readonly string[] = ['billingStatus'];
+
 const REQUEST_SORT: Record<string, string> = {
   startsOn: 'startsOn',
   createdAt: 'createdAt',
@@ -191,7 +194,8 @@ export class TrainingRequestsService {
         approverReason: plan.resolution.reason,
         escalatedFrom: toUserRefOrNull(viewer.org.get(plan.resolution.escalatedFromId)),
         autoApproval: plan.managerAuto,
-        activeDeputies: activeDeputiesOf(viewer.org, approver.id, viewer.today).map((d) => toUserRef(d)),
+        // Who is currently deputising reveals absences: only for people the user may request for.
+        activeDeputies: allowed ? activeDeputiesOf(viewer.org, approver.id, viewer.today).map((d) => toUserRef(d)) : [],
         allowed,
         notAllowedReason: !subject.active
           ? `${subject.displayName} is no longer active.`
@@ -330,6 +334,10 @@ export class TrainingRequestsService {
   ): Promise<TrainingRequestDetailView> {
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM training_requests WHERE id = ${id}::uuid FOR UPDATE`;
+      // Lock the attendees too (request -> attendees, the order every path uses): a concurrent
+      // approval must not pass between the "all pending" / cost-window checks and the write,
+      // or a raised cost could skip the executive step.
+      await tx.$queryRaw`SELECT id FROM training_attendees WHERE request_id = ${id}::uuid FOR UPDATE`;
       const viewer = await this.access.viewer(user, undefined, tx);
       const row = await this.findVisible(id, viewer, tx);
       const requester = this.isRequester(row, user);
@@ -613,12 +621,20 @@ export class TrainingRequestsService {
     });
     const names = new Map(attendees.map((a) => [a.id, a.user.displayName]));
     const reference = trainingReference(row.number);
-    return this.audit.timeline(
+    const entries = await this.audit.timeline(
       [
         { entityType: 'training_request', entityId: id },
         ...attendees.map((a) => ({ entityType: 'training_attendee', entityId: a.id })),
       ],
       (e) => (e.entityType === 'training_request' ? reference : (names.get(e.entityId) ?? 'Attendee')),
     );
+    if (viewer.isBackOffice) return entries;
+    // Actual cost and back-office comment are back-office only (SPEC_RESOLUTIONS #16): other
+    // viewers see the billing status change, not those values.
+    return entries.map((entry) => {
+      if (entry.action !== 'update_back_office' || !entry.changes) return entry;
+      const visible = entry.changes.filter((change) => PUBLIC_BACK_OFFICE_FIELDS.includes(change.field));
+      return { ...entry, changes: visible.length ? visible : null };
+    });
   }
 }

@@ -271,6 +271,12 @@ describe('training requests', () => {
         allowed: false,
         notAllowedReason: 'You can only request for yourself or your team',
       });
+      // The approver's current deputies (absences) only show for people Emma may request for.
+      const { attendees } = await attendeesOf(t, 8);
+      const other = await post(emma, '/training/requests/preview', {
+        attendees: [{ userId: attendees[0].userId }],
+      }).expect(200);
+      expect(other.body.attendees[0]).toMatchObject({ allowed: false, activeDeputies: [] });
     });
   });
 
@@ -376,6 +382,20 @@ describe('training requests', () => {
       const asEmma = await get(emma, `/training/requests/${request.id}`).expect(200);
       expect(asEmma.body.backOffice).toBeNull();
       expect(asEmma.body.actualCost).toBeNull();
+      // ... and the timeline does not reveal them either (only the billing status change)
+      type Entry = { action: string; changes: { field: string }[] | null };
+      const billing = async (auth: string) =>
+        ((await get(auth, `/training/requests/${request.id}/timeline`).expect(200)).body as Entry[]).filter(
+          (e) => e.action === 'update_back_office',
+        );
+      const forEmma = (await billing(emma)).at(-1);
+      expect(forEmma?.changes?.map((c) => c.field)).toEqual(['billingStatus']);
+      const forTina = (await billing(tina)).at(-1);
+      expect(forTina?.changes?.map((c) => c.field).sort()).toEqual([
+        'actualCostCents',
+        'backOfficeComment',
+        'billingStatus',
+      ]);
     });
   });
 
