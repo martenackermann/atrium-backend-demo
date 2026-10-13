@@ -5,6 +5,8 @@ import type { NextFunction, Request, Response } from 'express';
 interface RequestContextStore {
   /** Request id (X-Request-Id / traceId) or job run id. */
   correlationId: string;
+  /** Per-HTTP-request memo (see `RequestContext.memo`); absent for job runs. */
+  memo?: Map<string, Promise<unknown>>;
 }
 
 const storage = new AsyncLocalStorage<RequestContextStore>();
@@ -24,6 +26,27 @@ export const RequestContext = {
   run<T>(correlationId: string, fn: () => T): T {
     return storage.run({ correlationId }, fn);
   },
+  /**
+   * Computes `factory()` once per HTTP request and shares the promise with later calls in the
+   * same request (e.g. the org snapshot behind every approval check of a list). Outside a
+   * request (jobs, tests calling services directly) it just calls `factory()`. A rejected
+   * result is not kept. Call `forget(key)` after writing data the value depends on.
+   */
+  memo<T>(key: string, factory: () => Promise<T>): Promise<T> {
+    const memo = storage.getStore()?.memo;
+    if (!memo) return factory();
+    const cached = memo.get(key) as Promise<T> | undefined;
+    if (cached) return cached;
+    const promise = factory();
+    memo.set(key, promise);
+    promise.catch(() => {
+      if (memo.get(key) === promise) memo.delete(key);
+    });
+    return promise;
+  },
+  forget(key: string): void {
+    storage.getStore()?.memo?.delete(key);
+  },
 };
 
 /**
@@ -35,5 +58,5 @@ export function requestIdMiddleware(req: Request & { id?: unknown }, res: Respon
   const id = typeof incoming === 'string' && VALID_REQUEST_ID.test(incoming) ? incoming : randomUUID();
   req.id = id;
   res.setHeader('X-Request-Id', id);
-  storage.run({ correlationId: id }, () => next());
+  storage.run({ correlationId: id, memo: new Map() }, () => next());
 }

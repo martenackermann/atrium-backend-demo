@@ -8,6 +8,7 @@ import { dateFromIso, type IsoDate, isoFromDateOrNull } from '@/common/time/time
 import { PrismaService } from '@/database/prisma.service';
 import type { PrismaTx } from '@/database/prisma.types';
 import type { Prisma } from '@/generated/prisma/client';
+import { forgetOrgSnapshot } from '../approvals/approval.service';
 import { AuditService, diffFields } from '../audit/audit.service';
 import { deputyAssignedNotification } from '../mail/deputy-assigned.notification';
 import { NotificationService } from '../notifications/notification.service';
@@ -64,7 +65,7 @@ export class DeputiesService {
       throw ProblemException.fieldError('deputyId', 'A user cannot be their own deputy.');
     this.assertWindow(dto.validFrom, dto.validTo);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.writeOrg(async (tx) => {
       const deputy = await tx.user.findUnique({ where: { id: dto.deputyId } });
       if (!deputy?.active) throw ProblemException.fieldError('deputyId', 'Choose an active user.');
       if (principalId !== actor.id && !(await tx.user.count({ where: { id: principalId } }))) {
@@ -116,7 +117,7 @@ export class DeputiesService {
   }
 
   async update(actor: AuthUser, id: string, dto: UpdateDeputyDto): Promise<DeputyDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.writeOrg(async (tx) => {
       const row = await this.findOwn(tx, actor, id);
       const before = {
         validFrom: isoFromDateOrNull(row.validFrom),
@@ -161,7 +162,7 @@ export class DeputiesService {
   }
 
   async remove(actor: AuthUser, id: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.writeOrg(async (tx) => {
       const row = await this.findOwn(tx, actor, id);
       await tx.deputy.delete({ where: { id } });
       await this.audit.record(
@@ -232,5 +233,11 @@ export class DeputiesService {
     if (clash) {
       throw ProblemException.conflict('This deputy already has an overlapping window.', 'deputy_overlap');
     }
+  }
+
+  /** Org writes (users, roles, deputies) drop the request's cached org snapshot before and after. */
+  private writeOrg<T>(fn: (tx: PrismaTx) => Promise<T>): Promise<T> {
+    forgetOrgSnapshot();
+    return this.prisma.$transaction(fn).finally(forgetOrgSnapshot);
   }
 }

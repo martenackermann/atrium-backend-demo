@@ -9,6 +9,7 @@ import { toPrismaOrderBy } from '@/common/http/sort';
 import { PrismaService } from '@/database/prisma.service';
 import type { PrismaTx } from '@/database/prisma.types';
 import type { Prisma } from '@/generated/prisma/client';
+import { forgetOrgSnapshot } from '../approvals/approval.service';
 import { AuditService, diffFields } from '../audit/audit.service';
 import type { AdminUserDto, CreateAdminUserDto, ListAdminUsersQuery, UpdateAdminUserDto } from './admin.dto';
 
@@ -78,7 +79,7 @@ export class AdminUsersService {
       throw ProblemException.conflict('A user with this email already exists.');
     }
     const passwordHash = await hashPassword(dto.initialPassword);
-    return this.prisma.$transaction(async (tx) => {
+    return this.writeOrg(async (tx) => {
       await this.assertReferences(tx, dto);
       const employeeNumber = dto.employeeNumber ?? (await this.nextEmployeeNumber(tx));
       const created = await tx.user.create({
@@ -117,7 +118,7 @@ export class AdminUsersService {
   }
 
   async update(actor: AuthUser, id: string, dto: UpdateAdminUserDto): Promise<AdminUserDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.writeOrg(async (tx) => {
       const before = await tx.user.findUnique({ where: { id }, include });
       if (!before) throw ProblemException.notFound('User');
       if (dto.version !== undefined && dto.version !== before.version) throw ProblemException.versionConflict();
@@ -253,5 +254,11 @@ export class AdminUsersService {
     const rows = await tx.user.findMany({ select: { employeeNumber: true } });
     const max = rows.reduce((m, r) => Math.max(m, Number(/^E(\d+)$/.exec(r.employeeNumber)?.[1] ?? 0)), 10000);
     return `E${max + 1}`;
+  }
+
+  /** Org writes (users, roles, deputies) drop the request's cached org snapshot before and after. */
+  private writeOrg<T>(fn: (tx: PrismaTx) => Promise<T>): Promise<T> {
+    forgetOrgSnapshot();
+    return this.prisma.$transaction(fn).finally(forgetOrgSnapshot);
   }
 }

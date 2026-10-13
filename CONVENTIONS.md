@@ -401,3 +401,5 @@ test/                            e2e tests + support (test app, fixtures, per-ru
 - The SMTP health probe has a 5 s timeout and reuses a successful check for 60 s.
 - `POST /auth/demo-login` (DEMO_MODE, no secret) is limited to 10 x `LOGIN_RATE_LIMIT`; password
   login keeps `LOGIN_RATE_LIMIT`.
+- `ApprovalService` loads the org snapshot once per HTTP request (`RequestContext.memo`); services
+  that write users, roles or deputies drop it with `forgetOrgSnapshot()` before and after.

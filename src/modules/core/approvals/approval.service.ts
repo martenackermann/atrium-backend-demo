@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { toUserRef } from '@/common/domain/mappers';
 import type { ApprovalExemptionCode, ApproverReason } from '@/common/domain/vocabulary';
+import { RequestContext } from '@/common/http/request-context';
 import { Clock } from '@/common/time/clock.service';
 import { type IsoDate, isoFromDateOrNull } from '@/common/time/time';
 import { AppConfig } from '@/config/app-config';
@@ -52,6 +53,13 @@ export interface ApproverResolutionView {
   escalatedFromId: string | null;
 }
 
+const ORG_SNAPSHOT_KEY = 'approvals.org-snapshot';
+
+/** Drops the request's cached org snapshot - call after writing users, roles or deputies. */
+export function forgetOrgSnapshot(): void {
+  RequestContext.forget(ORG_SNAPSHOT_KEY);
+}
+
 @Injectable()
 export class ApprovalService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ApprovalService.name);
@@ -62,25 +70,34 @@ export class ApprovalService implements OnApplicationBootstrap {
     private readonly clock: Clock,
   ) {}
 
-  /** Loads the whole org (users + deputies) - small enough for the demo (52 users). */
-  async snapshot(db: PrismaTx = this.prisma): Promise<OrgSnapshot> {
-    const [users, deputies] = await Promise.all([
-      db.user.findMany({
-        select: {
-          id: true,
-          displayName: true,
-          email: true,
-          jobTitle: true,
-          firstName: true,
-          lastName: true,
-          active: true,
-          isSiteManager: true,
-          managerId: true,
-          roles: { where: { role: 'executive' }, select: { role: true } },
-        },
-      }),
-      db.deputy.findMany({ select: { principalId: true, deputyId: true, validFrom: true, validTo: true } }),
-    ]);
+  /**
+   * The whole org (users + deputies) - small enough for the demo (52 users). Loaded once per HTTP
+   * request (a list page asks for many approval decisions); writers of users/deputies call
+   * `forgetOrgSnapshot()`.
+   */
+  snapshot(db: PrismaTx = this.prisma): Promise<OrgSnapshot> {
+    return RequestContext.memo(ORG_SNAPSHOT_KEY, () => this.loadSnapshot(db));
+  }
+
+  private async loadSnapshot(db: PrismaTx): Promise<OrgSnapshot> {
+    // Sequential: inside an interactive transaction both queries share one connection.
+    const users = await db.user.findMany({
+      select: {
+        id: true,
+        displayName: true,
+        email: true,
+        jobTitle: true,
+        firstName: true,
+        lastName: true,
+        active: true,
+        isSiteManager: true,
+        managerId: true,
+        roles: { where: { role: 'executive' }, select: { role: true } },
+      },
+    });
+    const deputies = await db.deputy.findMany({
+      select: { principalId: true, deputyId: true, validFrom: true, validTo: true },
+    });
     return new OrgSnapshot(
       users.map(({ roles, ...u }) => ({ ...u, isExecutive: roles.length > 0 })),
       deputies.map((d) => ({ ...d, validFrom: isoFromDateOrNull(d.validFrom), validTo: isoFromDateOrNull(d.validTo) })),
