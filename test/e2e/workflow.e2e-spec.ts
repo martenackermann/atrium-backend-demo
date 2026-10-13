@@ -1,88 +1,97 @@
-import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createAppAbility } from '@/common/authz/ability.factory';
-import type { AppAbility } from '@/common/authz/ability.types';
-import { type ToyRequest, toyRequestWorkflow } from '@/common/workflow/examples/toy-request.workflow';
-import { WORKFLOW_NOTIFY_JOB } from '@/common/workflow/workflow.actions';
-import { WorkflowService } from '@/common/workflow/workflow.service';
-import type { PrismaTx } from '@/database/prisma.types';
-import { QueueService } from '@/infra/queue/queue.service';
+import { FixturesModule } from '../support/fixtures.module';
 import { createTestApp, type TestApp } from '../support/test-app';
 
 /**
- * Proves the workflow helper against the real database: transition, audit entry and
- * pg-boss notification job commit (or roll back) together. The toy rows are stored as
- * SystemSetting JSON so no extra table is needed.
+ * End-to-end workflow test with the test-only toy machine (test/support/fixtures.module.ts):
+ * HTTP action endpoint -> WorkflowService -> audit_logs + notification outbox, all in one
+ * transaction, plus availableActions per user.
  */
-const owner = { id: 'u-owner', email: 'emma.employee@example.com', roles: ['employee'] };
-const ownerAbility: AppAbility = createAppAbility([{ action: 'submit', subject: 'ToyRequest' }]);
-
-const store = {
-  async find(tx: PrismaTx, id: string): Promise<ToyRequest | null> {
-    const row = await tx.systemSetting.findUnique({ where: { key: `toy:${id}` } });
-    return row ? (row.value as unknown as ToyRequest) : null;
-  },
-  async update(tx: PrismaTx, id: string, expectedVersion: number, patch: Partial<ToyRequest>) {
-    const current = await store.find(tx, id);
-    if (!current || current.version !== expectedVersion) return null;
-    const next = { ...current, ...patch };
-    await tx.systemSetting.update({ where: { key: `toy:${id}` }, data: { value: next as never } });
-    return next;
-  },
-};
-
-async function jobCount(t: TestApp, entityId: string): Promise<number> {
-  const rows = await t.prisma.$queryRawUnsafe<{ count: bigint }[]>(
-    `SELECT count(*) AS count FROM pgboss.job WHERE name = $1 AND data->>'entityId' = $2`,
-    WORKFLOW_NOTIFY_JOB,
-    entityId,
-  );
-  return Number(rows[0]?.count ?? 0);
-}
-
-describe('workflow transitions against Postgres', () => {
+describe('workflow actions over HTTP (test-only machine)', () => {
   let t: TestApp;
-  let workflows: WorkflowService;
+  let emma: string;
+  let max: string;
+  let tom: string;
 
   beforeAll(async () => {
-    t = await createTestApp();
-    workflows = t.app.get(WorkflowService);
+    t = await createTestApp({ imports: [FixturesModule] });
+    [emma, max, tom] = await Promise.all([t.login('emma'), t.login('max'), t.login('tom')]);
   });
 
   afterAll(async () => {
     await t?.close();
   });
 
-  it('persists state, audit entry and notification job in one transaction', async () => {
-    const id = randomUUID();
-    const row: ToyRequest = { id, ownerId: owner.id, status: 'draft', decidedBy: null, reason: null, version: 1 };
-    await t.prisma.systemSetting.create({ data: { key: `toy:${id}`, value: row as never } });
+  const createToy = async () =>
+    (await t.http().post('/api/v1/test-fixtures/toys').set('Authorization', emma).expect(201)).body as {
+      id: string;
+      status: string;
+      availableActions: string[];
+    };
+  const act = (auth: string, id: string, action: string, body?: object) =>
+    t
+      .http()
+      .post(`/api/v1/test-fixtures/toys/${id}/actions/${action}`)
+      .set('Authorization', auth)
+      .send(body ?? {});
 
-    const result = await workflows.apply(toyRequestWorkflow(store), {
-      id,
-      action: 'submit',
-      actor: owner,
-      ability: ownerAbility,
-    });
+  it('submits, records audit + notification, and recomputes availableActions', async () => {
+    const toy = await createToy();
+    expect(toy).toMatchObject({ status: 'draft', state: 'draft', availableActions: ['submit'] });
 
-    expect(result).toMatchObject({ fromState: 'draft', toState: 'submitted', notifications: 1 });
-    expect(await store.find(t.prisma, id)).toMatchObject({ status: 'submitted', version: 2 });
-    const audit = await t.prisma.auditEntry.findMany({ where: { entityId: id } });
+    const res = await act(emma, toy.id, 'submit').expect(201);
+    expect(res.body).toMatchObject({ status: 'submitted', availableActions: ['withdraw'] });
+    const asMax = await t.http().get(`/api/v1/test-fixtures/toys/${toy.id}`).set('Authorization', max).expect(200);
+    expect(asMax.body.availableActions).toEqual(['approve', 'decline']);
+
+    const audit = await t.prisma.auditLog.findMany({ where: { entityId: toy.id } });
     expect(audit).toEqual([
-      expect.objectContaining({ entityType: 'ToyRequest', action: 'submit', fromState: 'draft', toState: 'submitted' }),
+      expect.objectContaining({
+        module: 'core',
+        entityType: 'toy_request',
+        action: 'submit',
+        fromState: 'draft',
+        toState: 'submitted',
+        actingAs: 'self',
+      }),
     ]);
-    expect(await jobCount(t, id)).toBe(1);
+    expect(audit[0].correlationId).toBe(res.headers['x-request-id']);
+
+    const email = await t.prisma.emailMessage.findFirstOrThrow({ where: { entityId: toy.id } });
+    expect(email).toMatchObject({
+      templateId: 'test.toy_event',
+      priority: 'high',
+      subject: expect.stringMatching(/^\[High priority\] Toy/),
+    });
+    const inApp = await t.prisma.notification.findFirstOrThrow({ where: { entityId: toy.id } });
+    expect(inApp).toMatchObject({ userId: await t.userId('emma'), priority: 'high', link: `/toys/${toy.id}` });
   });
 
-  it('rolls back the enqueued job when the transaction fails', async () => {
-    const entityId = randomUUID();
-    const queue = t.app.get(QueueService);
-    await expect(
-      t.prisma.$transaction(async (tx) => {
-        await queue.send(WORKFLOW_NOTIFY_JOB, { entityId, kind: 'test' }, { tx });
-        throw new Error('boom');
-      }),
-    ).rejects.toThrow('boom');
-    expect(await jobCount(t, entityId)).toBe(0);
+  it('answers 404 / 403 / 409 / 422 with problem+json', async () => {
+    const toy = await createToy();
+    // invisible to Tom (not owner, not manager) -> 404
+    expect((await act(tom, toy.id, 'submit').expect(404)).body.code).toBe('not_found');
+    // unknown action -> 404
+    expect((await act(emma, toy.id, 'explode').expect(404)).body.code).toBe('not_found');
+    // Max can see it but may not submit someone else's toy -> 403
+    expect((await act(max, toy.id, 'submit').expect(403)).body.code).toBe('forbidden');
+    // Max may decide, but not in draft -> 409 invalid_transition
+    const conflict = await act(max, toy.id, 'approve').expect(409);
+    expect(conflict.body).toMatchObject({
+      code: 'invalid_transition',
+      type: 'https://atrium.example.com/problems/invalid_transition',
+      detail: "Action 'approve' is not available in state 'draft'.",
+    });
+    await act(emma, toy.id, 'submit').expect(201);
+    // invalid body -> 422 (reason too short; unknown key)
+    expect((await act(max, toy.id, 'decline', { reason: 'no' }).expect(422)).body.errors.reason).toBeDefined();
+    await act(max, toy.id, 'approve', { bogus: true }).expect(422);
+
+    const declined = await act(max, toy.id, 'decline', { reason: 'Not this quarter' }).expect(201);
+    expect(declined.body).toMatchObject({ status: 'declined', reason: 'Not this quarter', availableActions: [] });
+    const audit = await t.prisma.auditLog.findFirstOrThrow({ where: { entityId: toy.id, action: 'decline' } });
+    expect(audit).toMatchObject({ actingAs: 'approver', reason: 'Not this quarter', actorId: await t.userId('max') });
+    // the owner may not act any more
+    await act(emma, toy.id, 'withdraw').expect(409);
   });
 });

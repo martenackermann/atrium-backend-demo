@@ -5,19 +5,16 @@ describe('GET /api/v1/health', () => {
   let t: TestApp;
 
   beforeAll(async () => {
-    t = await createTestApp();
+    t = await createTestApp({ seed: [] });
   });
 
   afterAll(async () => {
     await t?.close();
   });
 
-  it('reports database and queue as up', async () => {
+  it('reports database, queue and mail as up (public, no token)', async () => {
     const res = await t.http().get('/api/v1/health').expect(200);
-    expect(res.body).toMatchObject({
-      status: 'ok',
-      checks: { database: { status: 'up' }, queue: { status: 'up' } },
-    });
+    expect(res.body).toEqual({ status: 'ok', checks: { database: 'up', queue: 'up', mail: 'up' } });
     expect(res.headers['x-request-id']).toMatch(/^[\w-]+$/);
   });
 
@@ -26,14 +23,10 @@ describe('GET /api/v1/health', () => {
     expect(res.headers['x-request-id']).toBe('client-abc-123');
   });
 
-  it('sets security headers (helmet)', async () => {
-    const res = await t.http().get('/api/v1/health');
+  it('sets security headers and allows only configured CORS origins', async () => {
+    const res = await t.http().get('/api/v1/health').set('Origin', 'http://localhost:3000');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
-  });
-
-  it('allows the configured CORS origin only', async () => {
-    const allowed = await t.http().get('/api/v1/health').set('Origin', 'http://localhost:3000');
-    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:3000');
     const denied = await t.http().get('/api/v1/health').set('Origin', 'http://evil.example.com');
     expect(denied.headers['access-control-allow-origin']).toBeUndefined();
   });
