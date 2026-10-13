@@ -403,3 +403,12 @@ test/                            e2e tests + support (test app, fixtures, per-ru
   login keeps `LOGIN_RATE_LIMIT`.
 - `ApprovalService` loads the org snapshot once per HTTP request (`RequestContext.memo`); services
   that write users, roles or deputies drop it with `forgetOrgSnapshot()` before and after.
+- Security hardening (release review):
+  - The login limit is bound to the handlers with `@LoginRateLimit()` (not to URLs: Express also
+    routes `/auth/login/` and `/AUTH/LOGIN`). `TRUST_PROXY` (default `loopback`) decides which
+    proxies may set `X-Forwarded-For`.
+  - `NODE_ENV=production` with `DEMO_MODE=false` refuses placeholder or short secrets
+    (`JWT_SECRET`, `FILE_SIGNING_SECRET` >= 32 chars and different, a random `ENCRYPTION_KEY`) and
+    refuses to seed the demo personas; a DEMO_MODE deployment only logs a warning.
+  - CSV exports prefix text cells starting with `= + - @ TAB CR` with `'` (formula injection).
+  - Timelines must not reveal fields the detail DTO hides from the same viewer.
